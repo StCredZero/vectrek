@@ -109,10 +109,13 @@ func (s *RenderSystem) New(w *ecs.World) {
 	engo.Input.RegisterButton("ArrowLeft", engo.KeyArrowLeft)
 	engo.Input.RegisterButton("ArrowRight", engo.KeyArrowRight)
 	engo.Input.RegisterButton("ArrowUp", engo.KeyArrowUp)
-}
-
-func (s *RenderSystem) Update(dt float32) {
-	// Rendering will be implemented here
+	
+	// Set up OpenGL
+	gl.ClearColor(0, 0, 0, 1)
+	gl.MatrixMode(gl.PROJECTION)
+	gl.LoadIdentity()
+	gl.Ortho(0, 800, 600, 0, -1, 1)
+	gl.MatrixMode(gl.MODELVIEW)
 }
 
 func (s *RenderSystem) Remove(e ecs.BasicEntity) {}
