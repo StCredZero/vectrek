@@ -38,6 +38,25 @@ type Game struct {
 
 	vertices []ebiten.Vertex
 	indices  []uint16
+
+	ship *Ship // Player's spaceship
+}
+
+// NewShip creates a new ship at the center of the screen
+func NewShip() *Ship {
+	return &Ship{
+		x:     screenWidth / 2,
+		y:     screenHeight / 2,
+		angle: 0.0,
+	}
+}
+
+// Ship represents the player's spaceship with position, rotation, and movement
+type Ship struct {
+	x        float64 // x position on screen
+	y        float64 // y position on screen
+	angle    float64 // rotation angle in radians
+	velocity float64 // current velocity
 }
 
 func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool) {
@@ -305,7 +324,97 @@ func (g *Game) Update() error {
 		g.line = !g.line
 	}
 
+	// Ship rotation (3 degrees per frame)
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+		g.ship.angle -= 3 * (math.Pi / 180)
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+		g.ship.angle += 3 * (math.Pi / 180)
+	}
+
+	// Ship thrust
+	const (
+		thrustAccel = 0.2
+		maxVelocity = 5.0
+	)
+	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+		g.ship.velocity += thrustAccel
+		if g.ship.velocity > maxVelocity {
+			g.ship.velocity = maxVelocity
+		}
+	} else {
+		// Apply slight drag when not thrusting
+		g.ship.velocity *= 0.99
+	}
+
+	// Update ship position based on velocity and angle
+	g.ship.x += g.ship.velocity * math.Cos(g.ship.angle)
+	g.ship.y += g.ship.velocity * math.Sin(g.ship.angle)
+
+	// Wrap around screen edges (toroidal topology)
+	if g.ship.x < 0 {
+		g.ship.x += screenWidth
+	} else if g.ship.x >= screenWidth {
+		g.ship.x -= screenWidth
+	}
+	if g.ship.y < 0 {
+		g.ship.y += screenHeight
+	} else if g.ship.y >= screenHeight {
+		g.ship.y -= screenHeight
+	}
+
 	return nil
+}
+
+func (g *Game) drawShip(screen *ebiten.Image, aa bool, line bool) {
+	var path vector.Path
+
+	// Define ship as a triangle
+	length := float32(15.0)
+	theta := float32(g.ship.angle)
+	
+	// Front point
+	path.MoveTo(
+		float32(g.ship.x)+length*float32(math.Cos(float64(theta))),
+		float32(g.ship.y)+length*float32(math.Sin(float64(theta))),
+	)
+	
+	// Right point (120 degrees from front)
+	path.LineTo(
+		float32(g.ship.x)+length*float32(math.Cos(float64(theta)+2.0944)), // 2.0944 rad = 120 deg
+		float32(g.ship.y)+length*float32(math.Sin(float64(theta)+2.0944)),
+	)
+	
+	// Left point (-120 degrees from front)
+	path.LineTo(
+		float32(g.ship.x)+length*float32(math.Cos(float64(theta)-2.0944)),
+		float32(g.ship.y)+length*float32(math.Sin(float64(theta)-2.0944)),
+	)
+	
+	path.Close()
+
+	if line {
+		op := &vector.StrokeOptions{}
+		op.Width = 2
+		op.LineJoin = vector.LineJoinRound
+		g.vertices, g.indices = path.AppendVerticesAndIndicesForStroke(g.vertices[:0], g.indices[:0], op)
+	} else {
+		g.vertices, g.indices = path.AppendVerticesAndIndicesForFilling(g.vertices[:0], g.indices[:0])
+	}
+
+	for i := range g.vertices {
+		g.vertices[i].SrcX = 1
+		g.vertices[i].SrcY = 1
+		g.vertices[i].ColorR = 1
+		g.vertices[i].ColorG = 1
+		g.vertices[i].ColorB = 1
+		g.vertices[i].ColorA = 1
+	}
+
+	op := &ebiten.DrawTrianglesOptions{}
+	op.AntiAlias = aa
+	op.FillRule = ebiten.FillRuleNonZero
+	screen.DrawTriangles(g.vertices, g.indices, whiteSubImage, op)
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -316,10 +425,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawEbitenLogo(dst, 20, 150, g.aa, g.line)
 	g.drawArc(dst, g.counter, g.aa, g.line)
 	g.drawWave(dst, g.counter, g.aa, g.line)
+	g.drawShip(dst, g.aa, g.line)
 
 	msg := fmt.Sprintf("TPS: %0.2f\nFPS: %0.2f", ebiten.ActualTPS(), ebiten.ActualFPS())
 	msg += "\nPress A to switch anti-alias."
 	msg += "\nPress L to switch the fill mode and the line mode."
+	msg += "\nUse arrow keys to control the ship."
 	ebitenutil.DebugPrint(screen, msg)
 }
 
@@ -328,7 +439,10 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
-	g := &Game{counter: 0}
+	g := &Game{
+		counter: 0,
+		ship:    NewShip(),
+	}
 
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Vector (Ebitengine Demo)")
