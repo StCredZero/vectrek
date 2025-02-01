@@ -85,11 +85,20 @@ func (s *GameServer) Start() error {
 
 		// Send position updates to client
 		if s.dataChannel.ReadyState() == webrtc.DataChannelStateOpen {
-			// Collect position data from all entities
-			positions := make(map[string]struct {
-				X, Y     float32
-				Rotation float32
-			})
+			// Collect entity state data
+			state := struct {
+				Entities map[string]struct {
+					X, Y     float32
+					Rotation float32
+					Type     string
+				}
+			}{
+				Entities: make(map[string]struct {
+					X, Y     float32
+					Rotation float32
+					Type     string
+				}),
+			}
 
 			for _, e := range s.world.Entities() {
 				if pos, ok := e.GetComponent(&game.PositionComponent{}).(*game.PositionComponent); ok {
@@ -97,21 +106,35 @@ func (s *GameServer) Start() error {
 					if rotComp, ok := e.GetComponent(&game.RotationComponent{}).(*game.RotationComponent); ok {
 						rot = rotComp.Angle
 					}
-					positions[e.ID()] = struct {
+
+					// Determine entity type
+					entityType := "rectangle"
+					if e.ID() == "Ship" {
+						entityType = "ship"
+					}
+
+					state.Entities[e.ID()] = struct {
 						X, Y     float32
 						Rotation float32
+						Type     string
 					}{
 						X:        pos.X,
 						Y:        pos.Y,
 						Rotation: rot,
+						Type:     entityType,
 					}
 				}
 			}
 
-			// Send update
-			// Note: Using JSON for simplicity, but in production you might want a more efficient format
-			if err := s.dataChannel.Send([]byte(fmt.Sprintf("%v", positions))); err != nil {
-				log.Printf("Failed to send position update: %v", err)
+			// Send state update
+			data, err := json.Marshal(state)
+			if err != nil {
+				log.Printf("Failed to marshal state: %v", err)
+				continue
+			}
+
+			if err := s.dataChannel.Send(data); err != nil {
+				log.Printf("Failed to send state update: %v", err)
 				// Continue even if send fails (UDP semantics)
 			}
 		}

@@ -40,49 +40,68 @@ func (s *mainScene) Setup(u engo.Updater) {
 		log.Fatalf("Failed to create peer connection: %v", err)
 	}
 
-	// Set up data channel handler
+	// Set up data channel handler for state updates
 	s.peerConn.OnDataChannel(func(d *webrtc.DataChannel) {
-		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// Parse position updates
-			var positions map[string]struct {
-				X, Y     float32
-				Rotation float32
-			}
-			if err := json.Unmarshal(msg.Data, &positions); err != nil {
-				log.Printf("Failed to parse position update: %v", err)
-				return
-			}
-
-			// Update entity positions
-			for id, pos := range positions {
-				entity, exists := s.entityMap[id]
-				if !exists {
-					// Create new entity if it doesn't exist
-					entity = ecs.NewEntity(id)
-					entity.AddComponent(&game.PositionComponent{X: pos.X, Y: pos.Y})
-					entity.AddComponent(&game.RotationComponent{Angle: pos.Rotation})
-					entity.AddComponent(&game.RenderComponent{
-						Points: []float32{
-							0, -20, // nose
-							15, 20,  // right
-							-15, 20, // left
-						},
-						Color: struct{ R, G, B float32 }{1, 1, 1},
-					})
-					s.world.AddEntity(entity)
-					s.entityMap[id] = entity
-				} else {
-					// Update existing entity
-					if posComp, ok := entity.GetComponent(&game.PositionComponent{}).(*game.PositionComponent); ok {
-						posComp.X = pos.X
-						posComp.Y = pos.Y
-					}
-					if rotComp, ok := entity.GetComponent(&game.RotationComponent{}).(*game.RotationComponent); ok {
-						rotComp.Angle = pos.Rotation
+		if d.Label() == "state" {
+			d.OnMessage(func(msg webrtc.DataChannelMessage) {
+				// Parse state update
+				var state struct {
+					Entities map[string]struct {
+						X, Y     float32
+						Rotation float32
+						Type     string
 					}
 				}
-			}
-		})
+				if err := json.Unmarshal(msg.Data, &state); err != nil {
+					log.Printf("Failed to parse state update: %v", err)
+					return
+				}
+
+				// Update or create entities based on server state
+				for id, entityState := range state.Entities {
+					entity, exists := s.entityMap[id]
+					if !exists {
+						// Create new entity
+						entity = ecs.NewEntity(id)
+						entity.AddComponent(&game.PositionComponent{X: entityState.X, Y: entityState.Y})
+						entity.AddComponent(&game.RotationComponent{Angle: entityState.Rotation})
+
+						// Add render component based on entity type
+						var renderComp *game.RenderComponent
+						switch entityState.Type {
+						case "ship":
+							renderComp = game.CreateRenderComponent(game.EntityTypeShip)
+						case "rectangle":
+							renderComp = game.CreateRenderComponent(game.EntityTypeRectangle)
+						default:
+							log.Printf("Unknown entity type: %s", entityState.Type)
+							continue
+						}
+						entity.AddComponent(renderComp)
+
+						s.world.AddEntity(entity)
+						s.entityMap[id] = entity
+					} else {
+						// Update existing entity
+						if posComp, ok := entity.GetComponent(&game.PositionComponent{}).(*game.PositionComponent); ok {
+							posComp.X = entityState.X
+							posComp.Y = entityState.Y
+						}
+						if rotComp, ok := entity.GetComponent(&game.RotationComponent{}).(*game.RotationComponent); ok {
+							rotComp.Angle = entityState.Rotation
+						}
+					}
+				}
+
+				// Remove entities that no longer exist in server state
+				for id, entity := range s.entityMap {
+					if _, exists := state.Entities[id]; !exists {
+						s.world.RemoveEntity(*entity)
+						delete(s.entityMap, id)
+					}
+				}
+			})
+		}
 	})
 
 	// Register input controls
