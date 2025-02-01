@@ -85,8 +85,42 @@ func (s *mainScene) Setup(u engo.Updater) {
 		})
 	})
 
-	// Add render system for graphics
+	// Register input controls
+	engo.Input.RegisterButton("ArrowLeft", engo.KeyArrowLeft)
+	engo.Input.RegisterButton("ArrowRight", engo.KeyArrowRight)
+	engo.Input.RegisterButton("ArrowUp", engo.KeyArrowUp)
+
+	// Add render system for graphics (client-side only)
 	s.world.AddSystem(&game.RenderSystem{})
+}
+
+// Update handles input and sends it to the server
+func (s *mainScene) Update(dt float32) {
+	// Check input state
+	input := struct{ Left, Right, Up bool }{
+		Left:  engo.Input.Button("ArrowLeft").Down(),
+		Right: engo.Input.Button("ArrowRight").Down(),
+		Up:    engo.Input.Button("ArrowUp").Down(),
+	}
+
+	// Send input to server if connection is ready
+	if s.peerConn != nil && s.peerConn.ConnectionState() == webrtc.PeerConnectionStateConnected {
+		// Find input channel
+		for _, dc := range s.peerConn.DataChannels() {
+			if dc.Label() == "input" && dc.ReadyState() == webrtc.DataChannelStateOpen {
+				data, err := json.Marshal(input)
+				if err != nil {
+					log.Printf("Failed to marshal input: %v", err)
+					return
+				}
+				
+				if err := dc.Send(data); err != nil {
+					log.Printf("Failed to send input: %v", err)
+				}
+				break
+			}
+		}
+	}
 }
 
 func main() {

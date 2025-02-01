@@ -79,25 +79,35 @@ func (s *ShipControlSystem) HandleInput(input struct{ Left, Right, Up bool }, dt
 		return
 	}
 
-	// Handle rotation
+	// Get components once
+	rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
+	vel := s.ship.GetComponent(&VelocityComponent{}).(*VelocityComponent)
+
+	// Server-side input validation and handling
+	maxRotationSpeed := float32(4.0)
 	if input.Left {
-		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
-		rot.Angle -= 4 * dt
+		rot.Angle -= maxRotationSpeed * dt
 	}
 	if input.Right {
-		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
-		rot.Angle += 4 * dt
+		rot.Angle += maxRotationSpeed * dt
 	}
 	
-	// Handle thrust
+	// Server-side thrust validation and handling
+	maxThrust := float32(200.0)
+	maxSpeed := float32(400.0)
 	if input.Up {
-		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
-		vel := s.ship.GetComponent(&VelocityComponent{}).(*VelocityComponent)
-		
-		// Apply thrust in direction of rotation
-		thrust := float32(200)
-		vel.X += thrust * float32(math.Cos(float64(rot.Angle))) * dt
-		vel.Y += thrust * float32(math.Sin(float64(rot.Angle))) * dt
+		// Apply thrust in direction of rotation with speed limit
+		thrust := maxThrust * dt
+		vel.X += thrust * float32(math.Cos(float64(rot.Angle)))
+		vel.Y += thrust * float32(math.Sin(float64(rot.Angle)))
+
+		// Enforce maximum velocity (server-side authority)
+		speed := float32(math.Sqrt(float64(vel.X*vel.X + vel.Y*vel.Y)))
+		if speed > maxSpeed {
+			ratio := maxSpeed / speed
+			vel.X *= ratio
+			vel.Y *= ratio
+		}
 	}
 }
 
@@ -110,11 +120,6 @@ type RenderSystem struct {
 
 func (s *RenderSystem) New(w *ecs.World) {
 	s.world = w
-	
-	// Register input controls (client-side only)
-	engo.Input.RegisterButton("ArrowLeft", engo.KeyArrowLeft)
-	engo.Input.RegisterButton("ArrowRight", engo.KeyArrowRight)
-	engo.Input.RegisterButton("ArrowUp", engo.KeyArrowUp)
 	
 	// Set up OpenGL
 	gl.ClearColor(0, 0, 0, 1)

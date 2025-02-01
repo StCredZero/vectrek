@@ -38,18 +38,38 @@ func NewGameServer() (*GameServer, error) {
 		peerConn: peerConn,
 	}
 
-	// Create a data channel for sending position updates
-	dataChannel, err := peerConn.CreateDataChannel("game", &webrtc.DataChannelInit{
-		Ordered: new(bool), // false = unordered delivery (UDP-like)
+	// Create data channels for game state and input
+	stateChannel, err := peerConn.CreateDataChannel("state", &webrtc.DataChannelInit{
+		Ordered: webrtc.Bool(false), // false = unordered delivery (UDP-like)
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create data channel: %v", err)
+		return nil, fmt.Errorf("failed to create state channel: %v", err)
 	}
-	server.dataChannel = dataChannel
+	server.dataChannel = stateChannel
 
-	// Set up the game world
+	inputChannel, err := peerConn.CreateDataChannel("input", &webrtc.DataChannelInit{
+		Ordered: webrtc.Bool(false), // false = unordered delivery (UDP-like)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create input channel: %v", err)
+	}
+
+	// Handle input from client
+	inputChannel.OnMessage(func(msg webrtc.DataChannelMessage) {
+		var input struct{ Left, Right, Up bool }
+		if err := json.Unmarshal(msg.Data, &input); err != nil {
+			log.Printf("Failed to parse input: %v", err)
+			return
+		}
+
+		// Apply input to ship control system
+		if shipSystem := server.world.Systems()[0].(*game.ShipControlSystem); shipSystem != nil {
+			shipSystem.HandleInput(input, 1.0/60.0) // Use fixed timestep for predictability
+		}
+	})
+
+	// Set up the game world with server-side systems only
 	server.world.AddSystem(&game.ShipControlSystem{})
-	server.world.AddSystem(&game.RenderSystem{})
 
 	return server, nil
 }
