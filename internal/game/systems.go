@@ -3,7 +3,7 @@ package game
 import (
 	"github.com/EngoEngine/ecs"
 	"github.com/EngoEngine/engo"
-	"github.com/EngoEngine/engo/common"
+	"github.com/EngoEngine/gl"
 	"math"
 )
 
@@ -23,7 +23,7 @@ type RotationComponent struct {
 	Angle float32
 }
 
-// Ship control system
+// Ship control system (server-side)
 type ShipControlSystem struct {
 	world *ecs.World
 	ship  *ecs.Entity
@@ -54,27 +54,6 @@ func (s *ShipControlSystem) Update(dt float32) {
 		return
 	}
 	
-	// Handle rotation
-	if engo.Input.Button("ArrowLeft").Down() {
-		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
-		rot.Angle -= 4 * dt
-	}
-	if engo.Input.Button("ArrowRight").Down() {
-		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
-		rot.Angle += 4 * dt
-	}
-	
-	// Handle thrust
-	if engo.Input.Button("ArrowUp").Down() {
-		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
-		vel := s.ship.GetComponent(&VelocityComponent{}).(*VelocityComponent)
-		
-		// Apply thrust in direction of rotation
-		thrust := float32(200)
-		vel.X += thrust * float32(math.Cos(float64(rot.Angle))) * dt
-		vel.Y += thrust * float32(math.Sin(float64(rot.Angle))) * dt
-	}
-	
 	// Update position based on velocity
 	pos := s.ship.GetComponent(&PositionComponent{}).(*PositionComponent)
 	vel := s.ship.GetComponent(&VelocityComponent{}).(*VelocityComponent)
@@ -95,9 +74,36 @@ func (s *ShipControlSystem) Update(dt float32) {
 	}
 }
 
+func (s *ShipControlSystem) HandleInput(input struct{ Left, Right, Up bool }, dt float32) {
+	if s.ship == nil {
+		return
+	}
+
+	// Handle rotation
+	if input.Left {
+		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
+		rot.Angle -= 4 * dt
+	}
+	if input.Right {
+		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
+		rot.Angle += 4 * dt
+	}
+	
+	// Handle thrust
+	if input.Up {
+		rot := s.ship.GetComponent(&RotationComponent{}).(*RotationComponent)
+		vel := s.ship.GetComponent(&VelocityComponent{}).(*VelocityComponent)
+		
+		// Apply thrust in direction of rotation
+		thrust := float32(200)
+		vel.X += thrust * float32(math.Cos(float64(rot.Angle))) * dt
+		vel.Y += thrust * float32(math.Sin(float64(rot.Angle))) * dt
+	}
+}
+
 func (s *ShipControlSystem) Remove(e ecs.BasicEntity) {}
 
-// Render system
+// Render system (client-side)
 type RenderSystem struct {
 	world *ecs.World
 }
@@ -105,7 +111,7 @@ type RenderSystem struct {
 func (s *RenderSystem) New(w *ecs.World) {
 	s.world = w
 	
-	// Register input controls
+	// Register input controls (client-side only)
 	engo.Input.RegisterButton("ArrowLeft", engo.KeyArrowLeft)
 	engo.Input.RegisterButton("ArrowRight", engo.KeyArrowRight)
 	engo.Input.RegisterButton("ArrowUp", engo.KeyArrowUp)

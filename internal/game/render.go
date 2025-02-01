@@ -2,7 +2,6 @@ package game
 
 import (
 	"github.com/EngoEngine/ecs"
-	"github.com/EngoEngine/engo"
 	"github.com/EngoEngine/gl"
 	"math"
 )
@@ -13,7 +12,44 @@ type RenderComponent struct {
 	Color  struct{ R, G, B float32 }
 }
 
+// EntityType identifies the type of entity for rendering
+type EntityType int
+
+const (
+	EntityTypeShip EntityType = iota
+	EntityTypeRectangle
+)
+
+// CreateRenderComponent creates a RenderComponent based on entity type
+func CreateRenderComponent(entityType EntityType) *RenderComponent {
+	render := &RenderComponent{}
+	render.Color.R = 1
+	render.Color.G = 1
+	render.Color.B = 1
+
+	switch entityType {
+	case EntityTypeShip:
+		render.Points = []float32{
+			0, -20, // nose
+			15, 20,  // right
+			-15, 20, // left
+		}
+	case EntityTypeRectangle:
+		render.Points = []float32{
+			-25, -25, // top left
+			25, -25,  // top right
+			25, 25,   // bottom right
+			-25, 25,  // bottom left
+		}
+	}
+
+	return render
+}
+
 func (s *RenderSystem) Update(dt float32) {
+	gl.Clear(gl.COLOR_BUFFER_BIT)
+	gl.LoadIdentity()
+
 	for _, e := range s.world.Entities() {
 		pos, hasPos := e.GetComponent(&PositionComponent{}).(*PositionComponent)
 		render, hasRender := e.GetComponent(&RenderComponent{}).(*RenderComponent)
@@ -39,10 +75,25 @@ func (s *RenderSystem) Update(dt float32) {
 			}
 		}
 		
-		// Translate to position
+		// Translate to position with screen wrapping
 		for i := 0; i < len(transformedPoints); i += 2 {
-			transformedPoints[i] += pos.X
-			transformedPoints[i+1] += pos.Y
+			x := pos.X + transformedPoints[i]
+			y := pos.Y + transformedPoints[i+1]
+
+			// Handle screen wrapping
+			if x < 0 {
+				x += 800
+			} else if x > 800 {
+				x -= 800
+			}
+			if y < 0 {
+				y += 600
+			} else if y > 600 {
+				y -= 600
+			}
+
+			transformedPoints[i] = x
+			transformedPoints[i+1] = y
 		}
 		
 		// Draw the shape
@@ -55,48 +106,4 @@ func (s *RenderSystem) Update(dt float32) {
 		
 		gl.End()
 	}
-}
-
-func (s *ShipControlSystem) New(w *ecs.World) {
-	s.world = w
-	
-	// Create ship entity with triangle shape
-	ship := ecs.NewEntity("Ship")
-	shipRender := &RenderComponent{
-		Points: []float32{
-			0, -20, // nose
-			15, 20, // right
-			-15, 20, // left
-		},
-	}
-	shipRender.Color.R = 1
-	shipRender.Color.G = 1
-	shipRender.Color.B = 1
-	
-	ship.AddComponent(&PositionComponent{X: 400, Y: 300})
-	ship.AddComponent(&VelocityComponent{})
-	ship.AddComponent(&RotationComponent{})
-	ship.AddComponent(shipRender)
-	
-	s.ship = ship
-	w.AddEntity(ship)
-	
-	// Create rectangle entity
-	rect := ecs.NewEntity("Rectangle")
-	rectRender := &RenderComponent{
-		Points: []float32{
-			-25, -25, // top left
-			25, -25,  // top right
-			25, 25,   // bottom right
-			-25, 25,  // bottom left
-		},
-	}
-	rectRender.Color.R = 1
-	rectRender.Color.G = 1
-	rectRender.Color.B = 1
-	
-	rect.AddComponent(&PositionComponent{X: 200, Y: 200})
-	rect.AddComponent(rectRender)
-	
-	w.AddEntity(rect)
 }
