@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"github.com/StCredZero/vectrek/ship"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -37,67 +38,7 @@ type Game struct {
 	Vertices []ebiten.Vertex
 	Indices  []uint16
 
-	Ship *Ship // Player's spaceship
-}
-
-// NewShip creates a new ship at the center of the screen
-func NewShip() *Ship {
-	return &Ship{
-		X:     ScreenWidth / 2,
-		Y:     ScreenHeight / 2,
-		Angle: 0.0,
-	}
-}
-
-// Ship represents the player's spaceship with position, rotation, and movement
-type Ship struct {
-	X        float64 // X position on screen
-	Y        float64 // Y position on screen
-	XV       float64
-	YV       float64
-	Angle    float64 // rotation Angle in radians
-	Velocity float64 // current Velocity
-}
-
-type ShipInput struct {
-	Left   bool
-	Right  bool
-	Thrust bool
-}
-
-// Ship thrust
-const (
-	thrustAccel = 0.2
-	maxVelocity = 5.0
-)
-
-func (s *Ship) Update(input ShipInput) error {
-	// Ship rotation (3 degrees per tick)
-	if input.Left {
-		s.Angle -= 3 * (math.Pi / 180)
-	}
-	if input.Right {
-		s.Angle += 3 * (math.Pi / 180)
-	}
-	if input.Thrust {
-		// Update ship position based on velocity and angle
-		s.XV += math.Cos(s.Angle) * thrustAccel
-		s.YV += math.Sin(s.Angle) * thrustAccel
-	}
-	s.X += s.XV
-	s.Y += s.YV
-	// Wrap around screen edges (toroidal topology)
-	if s.X < 0 {
-		s.X += ScreenWidth
-	} else if s.X >= ScreenWidth {
-		s.X -= ScreenWidth
-	}
-	if s.Y < 0 {
-		s.Y += ScreenHeight
-	} else if s.Y >= ScreenHeight {
-		s.Y -= ScreenHeight
-	}
-	return nil
+	Ship *ship.Ship // Player's spaceship
 }
 
 func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool) {
@@ -260,7 +201,7 @@ func (g *Game) Update() error {
 		g.Line = !g.Line
 	}
 
-	var shipInput ShipInput
+	var shipInput ship.ShipInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		shipInput.Left = true
 	}
@@ -271,6 +212,8 @@ func (g *Game) Update() error {
 		fmt.Println("up")
 		shipInput.Thrust = true
 	}
+
+	g.Ship.Update(shipInput)
 
 	return nil
 }
