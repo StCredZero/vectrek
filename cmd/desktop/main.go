@@ -10,7 +10,7 @@ import (
 func main() {
 	g := &game.Game{
 		Counter: 0,
-		Ship:    ship.NewShip(game.ScreenWidth, game.ScreenHeight),
+		Ships:   []*ship.Ship{ship.NewShip(game.ScreenWidth, game.ScreenHeight)},
 	}
 
 	ebiten.SetWindowSize(game.ScreenWidth, game.ScreenHeight)

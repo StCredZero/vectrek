@@ -2,27 +2,15 @@ package game
 
 import (
 	"fmt"
+	"github.com/StCredZero/vectrek/constants"
 	"github.com/StCredZero/vectrek/ship"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"image"
 	"image/color"
 	"math"
 )
-
-var (
-	WhiteImage = ebiten.NewImage(3, 3)
-
-	// WhiteSubImage is an internal sub image of WhiteImage.
-	// Use WhiteSubImage at DrawTriangles instead of WhiteImage in order to avoid bleeding edges.
-	WhiteSubImage = WhiteImage.SubImage(image.Rect(1, 1, 2, 2)).(*ebiten.Image)
-)
-
-func init() {
-	WhiteImage.Fill(color.White)
-}
 
 const (
 	ScreenWidth  = 640
@@ -38,7 +26,7 @@ type Game struct {
 	Vertices []ebiten.Vertex
 	Indices  []uint16
 
-	Ship *ship.Ship // Player's spaceship
+	Ships []*ship.Ship // Player's spaceship
 }
 
 func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool) {
@@ -145,7 +133,7 @@ func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool
 	// For simplicity, this example always uses FillRuleNonZero, whichever strokes or filling is done.
 	op.FillRule = ebiten.FillRuleNonZero
 
-	screen.DrawTriangles(g.Vertices, g.Indices, WhiteSubImage, op)
+	screen.DrawTriangles(g.Vertices, g.Indices, globals.WhiteSubImage, op)
 }
 
 func (g *Game) drawArc(screen *ebiten.Image, count int, aa bool, line bool) {
@@ -185,7 +173,7 @@ func (g *Game) drawArc(screen *ebiten.Image, count int, aa bool, line bool) {
 	op := &ebiten.DrawTrianglesOptions{}
 	op.AntiAlias = aa
 	op.FillRule = ebiten.FillRuleNonZero
-	screen.DrawTriangles(g.Vertices, g.Indices, WhiteSubImage, op)
+	screen.DrawTriangles(g.Vertices, g.Indices, globals.WhiteSubImage, op)
 }
 
 func (g *Game) Update() error {
@@ -201,7 +189,7 @@ func (g *Game) Update() error {
 		g.Line = !g.Line
 	}
 
-	var shipInput ship.ShipInput
+	var shipInput ship.PilotInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		shipInput.Left = true
 	}
@@ -213,60 +201,15 @@ func (g *Game) Update() error {
 		shipInput.Thrust = true
 	}
 
-	g.Ship.Update(shipInput)
+	for _, each := range g.Ships {
+		each.Input = shipInput
+		err := each.Update()
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
-}
-
-func (g *Game) drawShip(screen *ebiten.Image, aa bool, line bool) {
-	var path vector.Path
-
-	// Define ship as a triangle
-	length := float32(15.0)
-	theta := float32(g.Ship.Angle)
-
-	// Front point
-	path.MoveTo(
-		float32(g.Ship.X)+length*float32(math.Cos(float64(theta))),
-		float32(g.Ship.Y)+length*float32(math.Sin(float64(theta))),
-	)
-
-	// Right point (120 degrees from front)
-	path.LineTo(
-		float32(g.Ship.X)+length*float32(math.Cos(float64(theta)+2.0944)), // 2.0944 rad = 120 deg
-		float32(g.Ship.Y)+length*float32(math.Sin(float64(theta)+2.0944)),
-	)
-
-	// Left point (-120 degrees from front)
-	path.LineTo(
-		float32(g.Ship.X)+length*float32(math.Cos(float64(theta)-2.0944)),
-		float32(g.Ship.Y)+length*float32(math.Sin(float64(theta)-2.0944)),
-	)
-
-	path.Close()
-
-	if line {
-		op := &vector.StrokeOptions{}
-		op.Width = 2
-		op.LineJoin = vector.LineJoinRound
-		g.Vertices, g.Indices = path.AppendVerticesAndIndicesForStroke(g.Vertices[:0], g.Indices[:0], op)
-	} else {
-		g.Vertices, g.Indices = path.AppendVerticesAndIndicesForFilling(g.Vertices[:0], g.Indices[:0])
-	}
-
-	for i := range g.Vertices {
-		g.Vertices[i].SrcX = 1
-		g.Vertices[i].SrcY = 1
-		g.Vertices[i].ColorR = 1
-		g.Vertices[i].ColorG = 1
-		g.Vertices[i].ColorB = 1
-		g.Vertices[i].ColorA = 1
-	}
-
-	op := &ebiten.DrawTrianglesOptions{}
-	op.AntiAlias = aa
-	op.FillRule = ebiten.FillRuleNonZero
-	screen.DrawTriangles(g.Vertices, g.Indices, WhiteSubImage, op)
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
@@ -275,7 +218,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	dst.Fill(color.RGBA{0x00, 0x00, 0x00, 0xff})
 	g.drawEbitenText(dst, 0, 50, g.AA, g.Line)
 	g.drawArc(dst, g.Counter, g.AA, g.Line)
-	g.drawShip(dst, g.AA, g.Line)
+
+	for _, ship := range g.Ships {
+		ship.Draw(dst, false, false)
+	}
 
 	msg := fmt.Sprintf("TPS: %0.2f\nFPS: %0.2f", ebiten.ActualTPS(), ebiten.ActualFPS())
 	msg += "\nPress A to switch anti-alias."
