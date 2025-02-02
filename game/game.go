@@ -3,18 +3,14 @@ package game
 import (
 	"fmt"
 	"github.com/StCredZero/vectrek/constants"
-	"github.com/StCredZero/vectrek/ship"
+	"github.com/StCredZero/vectrek/entities"
+	"github.com/StCredZero/vectrek/globals"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"image/color"
 	"math"
-)
-
-const (
-	ScreenWidth  = 640
-	ScreenHeight = 480
 )
 
 type Game struct {
@@ -26,7 +22,7 @@ type Game struct {
 	Vertices []ebiten.Vertex
 	Indices  []uint16
 
-	Ships []*ship.Ship // Player's spaceship
+	Entities []*entities.Entity // Player's spaceship
 }
 
 func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool) {
@@ -189,7 +185,7 @@ func (g *Game) Update() error {
 		g.Line = !g.Line
 	}
 
-	var shipInput ship.PilotInput
+	var shipInput entities.PilotInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		shipInput.Left = true
 	}
@@ -201,7 +197,7 @@ func (g *Game) Update() error {
 		shipInput.Thrust = true
 	}
 
-	for _, each := range g.Ships {
+	for _, each := range g.Entities {
 		each.Input = shipInput
 		err := each.Update()
 		if err != nil {
@@ -219,7 +215,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawEbitenText(dst, 0, 50, g.AA, g.Line)
 	g.drawArc(dst, g.Counter, g.AA, g.Line)
 
-	for _, ship := range g.Ships {
+	for _, ship := range g.Entities {
 		ship.Draw(dst, false, false)
 	}
 
@@ -231,5 +227,5 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return ScreenWidth, ScreenHeight
+	return constants.ScreenWidth, constants.ScreenHeight
 }

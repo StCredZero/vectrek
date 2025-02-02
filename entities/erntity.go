@@ -1,26 +1,27 @@
-package ship
+package entities
 
 import (
 	"fmt"
+	"github.com/StCredZero/vectrek/constants"
 	"github.com/StCredZero/vectrek/globals"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"math"
 )
 
-// NewShip creates a new ship at the center of the screen
-func NewShip(screenWidth, screenHeight float64) *Ship {
-	return &Ship{
-		X:            screenWidth / 2,
-		Y:            screenHeight / 2,
-		ScreenWidth:  screenWidth,
-		ScreenHeight: screenHeight,
+// NewEntity creates a new ship at the center of the screen
+func NewEntity(x, y float64) *Entity {
+	return &Entity{
+		X:            x,
+		Y:            y,
+		ScreenWidth:  constants.ScreenWidth,
+		ScreenHeight: constants.ScreenHeight,
 		Angle:        0.0,
 	}
 }
 
-// Ship represents the player's spaceship with position, rotation, and movement
-type Ship struct {
+// Entity represents the player's spaceship with position, rotation, and movement
+type Entity struct {
 	X            float64 // X position on screen
 	Y            float64 // Y position on screen
 	XV           float64
@@ -40,16 +41,16 @@ type PilotInput struct {
 	Thrust bool
 }
 
-// Ship thrust
+// Entity thrust
 const (
 	ThrustAccel = 0.2
 	maxVelocity = 5.0
 )
 
-func (s *Ship) Update() error {
+func (s *Entity) Update() error {
 	input := s.Input
 
-	// Ship rotation (3 degrees per tick)
+	// Entity rotation (3 degrees per tick)
 	if input.Left {
 		s.Angle -= 3 * (math.Pi / 180)
 	}
@@ -77,7 +78,7 @@ func (s *Ship) Update() error {
 	return nil
 }
 
-func (s *Ship) Draw(screen *ebiten.Image, aa bool, line bool) {
+func (s *Entity) Draw(screen *ebiten.Image, aa bool, line bool) {
 	var path vector.Path
 	fmt.Printf("ship draw\n")
 
