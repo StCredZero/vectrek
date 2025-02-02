@@ -26,7 +26,7 @@ type Map[T any] struct {
 func NewMap[T any]() *Map[T] {
 	return &Map[T]{
 		sparse:  make(map[Key]int),
-		dense:   make([]mapEntry[T], 16),
+		dense:   make([]mapEntry[T], 0, 16),
 		deleted: make(map[int]struct{}),
 	}
 }

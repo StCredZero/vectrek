@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/StCredZero/vectrek/constants"
 	"github.com/StCredZero/vectrek/globals"
+	"github.com/StCredZero/vectrek/sparse"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"math"
@@ -22,6 +23,7 @@ func NewEntity(x, y float64) *Entity {
 
 // Entity represents the player's spaceship with position, rotation, and movement
 type Entity struct {
+	Key          sparse.Key
 	X            float64 // X position on screen
 	Y            float64 // Y position on screen
 	XV           float64
