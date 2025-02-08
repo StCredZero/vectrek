@@ -67,7 +67,7 @@ func (i *Instance) AddEntity(
 ) error {
 	i.Entities[entity] = struct{}{}
 	sort.Slice(components, func(i, j int) bool {
-		return components[i].SystemID() < components[j].SystemID()
+		return int(components[i].SystemID()) < components[j].SystemID()
 	})
 	for _, component := range components {
 		if err := component.Init(i, entity); err != nil {

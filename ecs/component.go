@@ -10,6 +10,15 @@ import (
 	"math"
 )
 
+type SystemID int
+
+const (
+	SystemPosition SystemID = iota
+	SystemMotion
+	SystemHelm
+	SystemSprite
+)
+
 type Component interface {
 	Init(i *Instance, entity EntityID) error
 	Update(i *Instance) error
