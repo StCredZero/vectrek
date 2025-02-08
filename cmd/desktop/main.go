@@ -32,12 +32,13 @@ func main() {
 	})
 	err := instance.AddEntity(
 		ecs.EntityID(0),
-		&ecs.Motion{
-			Position: geom.Vector{
+		&ecs.Position{
+			Vector: geom.Vector{
 				X: constants.ScreenWidth / 2,
 				Y: constants.ScreenHeight / 2,
 			},
 		},
+		new(ecs.Motion),
 		new(ecs.Helm),
 		new(ecs.Sprite),
 	)

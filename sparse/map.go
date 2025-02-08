@@ -2,6 +2,7 @@ package sparse
 
 import (
 	"errors"
+	"fmt"
 )
 
 var ErrMissing = errors.New("missing")
@@ -64,6 +65,14 @@ func (s *Map[T]) Get(key Key) (*T, bool) {
 		return &result, false
 	}
 	return &s.dense[denseIndex], true
+}
+
+func (s *Map[T]) GetErr(key Key) (*T, error) {
+	if result, ok := s.Get(key); !ok {
+		return nil, fmt.Errorf("mising key %d: %w", key, ErrMissing)
+	} else {
+		return result, nil
+	}
 }
 
 func (s *Map[T]) MustGet(key Key) *T {

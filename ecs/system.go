@@ -11,14 +11,24 @@ const (
 	SystemSprite
 )
 
-type System[T Component] struct {
-	ID      SystemID
+type System interface {
+	SystemID() SystemID
+}
+
+type MSystem[T any] struct {
+	SID     SystemID
 	Members sparse.Map[T]
 }
 
-func (s System[T]) Add(entity EntityID, obj T) {
+func (s MSystem[T]) SystemID() SystemID {
+	return s.SID
+}
+func (s MSystem[T]) Add(entity EntityID, obj T) {
 	s.Members.Add(entity, obj)
 }
-func (s System[T]) Iterate(fn func(each *T) error) {
+func (s MSystem[T]) Iterate(fn func(each *T) error) {
 	s.Iterate(fn)
+}
+func (s MSystem[T]) Get(entity EntityID) (*T, bool) {
+	return s.Members.Get(entity)
 }

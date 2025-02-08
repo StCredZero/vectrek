@@ -4,32 +4,54 @@ import (
 	"fmt"
 	"github.com/StCredZero/vectrek/geom"
 	"github.com/StCredZero/vectrek/globals"
+	"github.com/StCredZero/vectrek/vterr"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"math"
 )
 
 type Component interface {
+	Init(i *Instance, entity EntityID) error
+	Update(i *Instance) error
 	SystemID() SystemID
-	VerifyInit() error
-	Update(*Instance) error
+}
+
+type Position struct {
+	Entity EntityID
+	geom.Vector
+	geom.Angle
+}
+
+func (m *Position) Init(i *Instance, entity EntityID) error {
+	m.Entity = entity
+	i.Positions.Add(m.Entity, *m)
+	return nil
+}
+func (m *Position) Update(_ *Instance) error {
+	return nil
+}
+func (m *Position) SystemID() SystemID {
+	return SystemPosition
 }
 
 type Motion struct {
 	Entity   EntityID
-	Position geom.Vector
-	Angle    geom.Angle
+	Position *Position
 	Velocity geom.Vector
 }
 
-func (m *Motion) VerifyInit() error {
-	return HasPrerequisites(m.Position)
-}
-func (m *Motion) SystemID() SystemID {
-	return SystemMotion
+func (m *Motion) Init(i *Instance, entity EntityID) error {
+	m.Entity = entity
+	if p, gotPosition := i.Positions.Get(m.Entity); gotPosition {
+		m.Position = p
+	} else {
+		return fmt.Errorf("no position found for %s: %w", m.Entity, vterr.ErrMissing)
+	}
+	i.Motions.Add(m.Entity, *m)
+	return nil
 }
 func (m *Motion) Update(i *Instance) error {
-	m.Position = m.Position.Add(m.Velocity)
+	m.Position.Vector = m.Position.Vector.Add(m.Velocity)
 	fmt.Printf("position update %f %f %f %f \n", m.Velocity.X, m.Velocity.Y, m.Position.X, m.Position.Y)
 	// Wrap around screen edges (toroidal topology)
 	if m.Position.X < 0 {
@@ -44,18 +66,27 @@ func (m *Motion) Update(i *Instance) error {
 	}
 	return nil
 }
+func (m *Motion) SystemID() SystemID {
+	return SystemMotion
+}
 
 type Helm struct {
-	Entity EntityID
-	Motion *Motion
-	Input  HelmInput
+	Entity   EntityID
+	Position *Position
+	Motion   *Motion
+	Input    HelmInput
 }
 
-func (m *Helm) VerifyInit() error {
-	return HasPrerequisites(m.Motion)
-}
-func (m *Helm) SystemID() SystemID {
-	return SystemHelm
+func (m *Helm) Init(i *Instance, entity EntityID) error {
+	m.Entity = entity
+	if m.Motion = i.Motions.MustGet(m.Entity); m.Motion == nil {
+		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
+	}
+	if m.Position = i.Positions.MustGet(m.Entity); m.Position == nil {
+		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
+	}
+	i.Helms.Add(m.Entity, *m)
+	return nil
 }
 func (m *Helm) Update(i *Instance) error {
 	var input HelmInput
@@ -70,31 +101,40 @@ func (m *Helm) Update(i *Instance) error {
 	}
 	// Entity rotation (3 degrees per tick)
 	if input.Left {
-		m.Motion.Angle -= 3 * (math.Pi / 180)
+		m.Position.Angle -= 3 * (math.Pi / 180)
 	}
 	if input.Right {
-		m.Motion.Angle += 3 * (math.Pi / 180)
+		m.Position.Angle += 3 * (math.Pi / 180)
 	}
 	if input.Thrust {
 		// Update velocity based on velocity and angle
-		m.Motion.Velocity = m.Motion.Velocity.Add(m.Motion.Angle.ToVector().Multiply(ThrustAccel))
+		m.Motion.Velocity = m.Motion.Velocity.Add(m.Position.Angle.ToVector().Multiply(ThrustAccel))
 		fmt.Println("accel velocity %f %f \n", m.Motion.Velocity.X, m.Motion.Velocity.Y)
 	}
 	return nil
+}
+func (m *Helm) SystemID() SystemID {
+	return SystemHelm
 }
 
 type Sprite struct {
 	Entity   EntityID
 	Motion   *Motion
-	Vertices []ebiten.Vertex // Screen Componen
-	Indices  []uint16        // Screen Componen
+	Position *Position
+	Vertices []ebiten.Vertex
+	Indices  []uint16
 }
 
-func (m *Sprite) SystemID() SystemID {
-	return SystemSprite
-}
-func (m *Sprite) VerifyInit() error {
-	return HasPrerequisites(m.Motion)
+func (m *Sprite) Init(i *Instance, entity EntityID) error {
+	m.Entity = entity
+	if m.Motion = i.Motions.MustGet(m.Entity); m.Motion == nil {
+		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
+	}
+	if m.Position = i.Positions.MustGet(m.Entity); m.Position == nil {
+		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
+	}
+	i.Sprites.Add(m.Entity, *m)
+	return nil
 }
 func (m *Sprite) Update(i *Instance) error {
 	return nil
@@ -104,7 +144,7 @@ func (s *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 
 	// Define ship as a triangle
 	length := float32(15.0)
-	theta := float32(s.Motion.Angle)
+	theta := float32(s.Position.Angle)
 
 	// Front point
 	path.MoveTo(
@@ -148,4 +188,7 @@ func (s *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 	op.AntiAlias = aa
 	op.FillRule = ebiten.FillRuleNonZero
 	screen.DrawTriangles(s.Vertices, s.Indices, globals.WhiteSubImage, op)
+}
+func (m *Sprite) SystemID() SystemID {
+	return SystemSprite
 }
