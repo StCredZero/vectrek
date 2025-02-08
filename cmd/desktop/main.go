@@ -1,27 +1,50 @@
 package main
 
 import (
+	"fmt"
 	"github.com/StCredZero/vectrek/constants"
-	"github.com/StCredZero/vectrek/entities"
+	"github.com/StCredZero/vectrek/ecs"
 	"github.com/StCredZero/vectrek/game"
-	"github.com/StCredZero/vectrek/sparse"
+	"github.com/StCredZero/vectrek/geom"
 	"github.com/hajimehoshi/ebiten/v2"
 	"log"
 )
 
 func main() {
-	ents := make([]*entities.Entity, 0)
-	ents = append(ents, entities.NewEntity(constants.ScreenWidth/2, constants.ScreenHeight/2))
-	ents[0].Key = sparse.Key(0)
+	ents := make([]*ecs.Entity, 0)
+	ents = append(ents, ecs.NewEntity(constants.ScreenWidth/2, constants.ScreenHeight/2))
+	ents[0].ID = ecs.EntityID(0)
 
-	g := &game.Game{
-		Counter:  0,
-		Entities: ents,
+	if false {
+		instance := &game.Game{
+			Counter:  0,
+			Entities: ents,
+		}
+		ebiten.SetWindowSize(constants.ScreenWidth, constants.ScreenHeight)
+		ebiten.SetWindowTitle("Vector (Ebitengine Demo)")
+		if err := ebiten.RunGame(instance); err != nil {
+			log.Fatal(err)
+		}
 	}
-
+	instance := ecs.NewInstance(ecs.Parameters{
+		ScreenWidth:  constants.ScreenWidth,
+		ScreenHeight: constants.ScreenHeight,
+	})
+	err := instance.AddEntity(
+		ecs.EntityID(0),
+		&ecs.Motion{
+			Position: geom.Vector{
+				X: constants.ScreenWidth / 2,
+				Y: constants.ScreenHeight / 2,
+			},
+		},
+		new(ecs.Helm),
+		new(ecs.Sprite),
+	)
+	fmt.Println(err)
 	ebiten.SetWindowSize(constants.ScreenWidth, constants.ScreenHeight)
 	ebiten.SetWindowTitle("Vector (Ebitengine Demo)")
-	if err := ebiten.RunGame(g); err != nil {
+	if err := ebiten.RunGame(instance); err != nil {
 		log.Fatal(err)
 	}
 }

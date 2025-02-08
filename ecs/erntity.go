@@ -1,4 +1,4 @@
-package entities
+package ecs
 
 import (
 	"fmt"
@@ -21,23 +21,31 @@ func NewEntity(x, y float64) *Entity {
 	}
 }
 
+type EntityID = sparse.Key
+
 // Entity represents the player's spaceship with position, rotation, and movement
 type Entity struct {
-	Key          sparse.Key
-	X            float64 // X position on screen
-	Y            float64 // Y position on screen
-	XV           float64
-	YV           float64
-	Angle        float64 // rotation Angle in radians
-	ScreenWidth  float64
-	ScreenHeight float64
-	Input        PilotInput
+	// The following are fundamental to Entity
+	ID EntityID // Stays in Entity
+	X  float64  // X position on screen // Stays in Entity
+	Y  float64  // Y position on screen // Stays in Entity
 
-	Vertices []ebiten.Vertex
-	Indices  []uint16
+	// The following are to be moved to Motion Component
+	XV    float64 // Motion Component
+	YV    float64 // Motion Component
+	Angle float64 // rotation Angle in radians // Motion component
+
+	// The following are to be moved to Helm Component
+	Input HelmInput // Helm component
+
+	// The following are to be moved to Screen Component
+	ScreenWidth  float64         // Screen Componen
+	ScreenHeight float64         // Screen Componen
+	Vertices     []ebiten.Vertex // Screen Componen
+	Indices      []uint16        // Screen Componen
 }
 
-type PilotInput struct {
+type HelmInput struct {
 	Left   bool
 	Right  bool
 	Thrust bool
@@ -49,7 +57,7 @@ const (
 	maxVelocity = 5.0
 )
 
-func (s *Entity) Update() error {
+func (s *Entity) Update(instance *Instance) error {
 	input := s.Input
 
 	// Entity rotation (3 degrees per tick)

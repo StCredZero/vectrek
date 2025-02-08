@@ -3,7 +3,7 @@ package game
 import (
 	"fmt"
 	"github.com/StCredZero/vectrek/constants"
-	"github.com/StCredZero/vectrek/entities"
+	"github.com/StCredZero/vectrek/ecs"
 	"github.com/StCredZero/vectrek/globals"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -22,7 +22,7 @@ type Game struct {
 	Vertices []ebiten.Vertex
 	Indices  []uint16
 
-	Entities []*entities.Entity // Player's spaceship
+	Entities []*ecs.Entity // Player's spaceship
 }
 
 func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool) {
@@ -185,7 +185,7 @@ func (g *Game) Update() error {
 		g.Line = !g.Line
 	}
 
-	var shipInput entities.PilotInput
+	var shipInput ecs.HelmInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		shipInput.Left = true
 	}
@@ -199,7 +199,7 @@ func (g *Game) Update() error {
 
 	for _, each := range g.Entities {
 		each.Input = shipInput
-		err := each.Update()
+		err := each.Update(nil)
 		if err != nil {
 			return err
 		}
