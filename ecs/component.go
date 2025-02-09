@@ -54,14 +54,14 @@ func (m *Motion) Init(i *Instance, entity EntityID) error {
 	if p, gotPosition := i.Positions.Get(m.Entity); gotPosition {
 		m.Position = p
 	} else {
-		return fmt.Errorf("no position found for %s: %w", m.Entity, vterr.ErrMissing)
+		return fmt.Errorf("no position found for %d: %w", m.Entity, vterr.ErrMissing)
 	}
 	i.Motions.Add(m.Entity, *m)
 	return nil
 }
 func (m *Motion) Update(i *Instance) error {
 	m.Position.Vector = m.Position.Vector.Add(m.Velocity)
-	fmt.Printf("position update %f %f %f %f \n", m.Velocity.X, m.Velocity.Y, m.Position.X, m.Position.Y)
+
 	// Wrap around screen edges (toroidal topology)
 	if m.Position.X < 0 {
 		m.Position.X += i.Parameters.ScreenWidth
@@ -97,7 +97,7 @@ func (m *Helm) Init(i *Instance, entity EntityID) error {
 	i.Helms.Add(m.Entity, *m)
 	return nil
 }
-func (m *Helm) Update(i *Instance) error {
+func (m *Helm) Update(_ *Instance) error {
 	var input HelmInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		input.Left = true
@@ -118,7 +118,7 @@ func (m *Helm) Update(i *Instance) error {
 	if input.Thrust {
 		// Update velocity based on velocity and angle
 		m.Motion.Velocity = m.Motion.Velocity.Add(m.Position.Angle.ToVector().Multiply(ThrustAccel))
-		fmt.Println("accel velocity %f %f \n", m.Motion.Velocity.X, m.Motion.Velocity.Y)
+		fmt.Printf("accel velocity %f %f \n", m.Motion.Velocity.X, m.Motion.Velocity.Y)
 	}
 	return nil
 }
@@ -134,18 +134,18 @@ type Sprite struct {
 	Indices  []uint16
 }
 
-func (m *Sprite) Init(i *Instance, entity EntityID) error {
-	m.Entity = entity
-	if m.Motion = i.Motions.MustGet(m.Entity); m.Motion == nil {
+func (s *Sprite) Init(i *Instance, entity EntityID) error {
+	s.Entity = entity
+	if s.Motion = i.Motions.MustGet(s.Entity); s.Motion == nil {
 		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
 	}
-	if m.Position = i.Positions.MustGet(m.Entity); m.Position == nil {
+	if s.Position = i.Positions.MustGet(s.Entity); s.Position == nil {
 		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
 	}
-	i.Sprites.Add(m.Entity, *m)
+	i.Sprites.Add(s.Entity, *s)
 	return nil
 }
-func (m *Sprite) Update(i *Instance) error {
+func (s *Sprite) Update(_ *Instance) error {
 	return nil
 }
 func (s *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
@@ -198,6 +198,6 @@ func (s *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 	op.FillRule = ebiten.FillRuleNonZero
 	screen.DrawTriangles(s.Vertices, s.Indices, globals.WhiteSubImage, op)
 }
-func (m *Sprite) SystemID() SystemID {
+func (s *Sprite) SystemID() SystemID {
 	return SystemSprite
 }
