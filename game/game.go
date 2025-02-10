@@ -3,7 +3,8 @@ package game
 import (
 	"fmt"
 	"github.com/StCredZero/vectrek/constants"
-	"github.com/StCredZero/vectrek/ship"
+	"github.com/StCredZero/vectrek/ecs"
+	"github.com/StCredZero/vectrek/globals"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -12,21 +13,18 @@ import (
 	"math"
 )
 
-const (
-	ScreenWidth  = 640
-	ScreenHeight = 480
-)
-
 type Game struct {
 	Counter int
 
 	AA   bool
 	Line bool
 
+	Instance  *ecs.Instance
+	Sender    ecs.Sender
+	ShipInput ecs.HelmInput
+
 	Vertices []ebiten.Vertex
 	Indices  []uint16
-
-	Ships []*ship.Ship // Player's spaceship
 }
 
 func (g *Game) drawEbitenText(screen *ebiten.Image, x, y int, aa bool, line bool) {
@@ -189,7 +187,7 @@ func (g *Game) Update() error {
 		g.Line = !g.Line
 	}
 
-	var shipInput ship.PilotInput
+	var shipInput ecs.HelmInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		shipInput.Left = true
 	}
@@ -201,12 +199,16 @@ func (g *Game) Update() error {
 		shipInput.Thrust = true
 	}
 
-	for _, each := range g.Ships {
-		each.Input = shipInput
-		err := each.Update()
-		if err != nil {
-			return err
-		}
+	if g.ShipInput != shipInput {
+		g.ShipInput = shipInput
+		g.Sender.Send(ecs.ComponentMessage{
+			Entity:  ecs.EntityID(0),
+			Payload: g.ShipInput,
+		})
+	}
+
+	if err := g.Instance.Update(); err != nil {
+		return err
 	}
 
 	return nil
@@ -219,9 +221,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawEbitenText(dst, 0, 50, g.AA, g.Line)
 	g.drawArc(dst, g.Counter, g.AA, g.Line)
 
-	for _, ship := range g.Ships {
-		ship.Draw(dst, false, false)
-	}
+	g.Instance.Draw(screen)
 
 	msg := fmt.Sprintf("TPS: %0.2f\nFPS: %0.2f", ebiten.ActualTPS(), ebiten.ActualFPS())
 	msg += "\nPress A to switch anti-alias."
@@ -231,5 +231,5 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return ScreenWidth, ScreenHeight
+	return constants.ScreenWidth, constants.ScreenHeight
 }
