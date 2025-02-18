@@ -8,14 +8,14 @@ import (
 	"github.com/StCredZero/vectrek/geom"
 	"github.com/hajimehoshi/ebiten/v2"
 	"log"
-	"time"
 )
 
-func main() {
+func newServerInstance(inputPipe ecstypes.Receiver, outputPipe ecstypes.Sender) *ecs.Instance {
 	instance := ecs.NewInstance(ecs.Parameters{
 		ScreenWidth:  constants.ScreenWidth,
 		ScreenHeight: constants.ScreenHeight,
 	})
+	instance.Name = "Server"
 	err := instance.AddEntity(
 		ecstypes.EntityID(0),
 		&ecs.Position{
@@ -26,44 +26,57 @@ func main() {
 		},
 		new(ecs.Motion),
 		new(ecs.Helm),
-		new(ecs.Sprite),
+		new(ecs.SyncSender),
 	)
 	if err != nil {
 		log.Fatalf("fatal error: %w", err)
 	}
-	pipe := ecs.NewPipe()
-	instance.SetPipe(pipe)
+	instance.SetReceiver(inputPipe)
+	instance.SetSender(outputPipe)
+	return instance
+}
 
-	var sender ecs.Sender = pipe
-	var currentInput ecs.HelmInput
-	go func() {
-		for {
-			var shipInput ecs.HelmInput
-			if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
-				shipInput.Left = true
-			}
-			if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
-				shipInput.Right = true
-			}
-			if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
-				shipInput.Thrust = true
-			}
+func newClientInstance(inputPipe ecstypes.Receiver, outputPipe ecstypes.Sender) *ecs.Instance {
+	instance := ecs.NewInstance(ecs.Parameters{
+		ScreenWidth:  constants.ScreenWidth,
+		ScreenHeight: constants.ScreenHeight,
+	})
+	instance.Name = "Client"
+	err := instance.AddEntity(
+		ecstypes.EntityID(0),
+		&ecs.Position{
+			Vector: geom.Vector{
+				X: constants.ScreenWidth / 2,
+				Y: constants.ScreenHeight / 2,
+			},
+		},
+		new(ecs.Motion),
+		new(ecs.Sprite),
+		new(ecs.Player),
+		new(ecs.SyncReceiver),
+	)
+	if err != nil {
+		log.Fatalf("fatal error: %w", err)
+	}
+	instance.SetReceiver(inputPipe)
+	instance.SetSender(outputPipe)
+	return instance
+}
 
-			if currentInput != shipInput {
-				currentInput = shipInput
-				sender.Send(ecs.ComponentMessage{
-					Entity:  ecstypes.EntityID(0),
-					Payload: currentInput,
-				})
-			}
-			time.Sleep(1 / 60 * time.Second)
-		}
-	}()
+func main() {
+	var err error
+	var serverReceiver = ecs.NewPipe()
+	var serverSender = ecs.NewPipe()
+	serverInstance := newServerInstance(serverReceiver, serverSender)
+	clientInstance := newClientInstance(serverSender, serverReceiver)
 
 	ebiten.SetWindowSize(constants.ScreenWidth, constants.ScreenHeight)
 	ebiten.SetWindowTitle("Vector (Ebitengine Demo)")
+	fmt.Println("about to run server")
+	done := make(chan bool, 10)
+	go serverInstance.RunServer(done)
 	fmt.Println("about to run game")
-	if err = ebiten.RunGame(instance); err != nil {
+	if err = ebiten.RunGame(clientInstance); err != nil {
 		log.Fatalf("fatal error: %w", err)
 	}
 }

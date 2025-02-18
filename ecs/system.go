@@ -39,7 +39,11 @@ func (s *SMSystem[T]) GetComponent(e ecstypes.EntityID) (*T, bool) {
 	return result, true
 }
 
-func (s *SMSystem[T]) iterate(fn func(each *T) error) []error {
+func (s *SMSystem[T]) Iterate() []error {
+	return s.doIterate(s.Update)
+}
+
+func (s *SMSystem[T]) doIterate(fn func(each *T) error) []error {
 	var errs = make([]error, 10)
 	errs = append(errs, s.Map.Iterate(fn)...)
 	return errs

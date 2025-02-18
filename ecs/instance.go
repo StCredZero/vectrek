@@ -8,6 +8,7 @@ import (
 	"github.com/StCredZero/vectrek/slices"
 	"github.com/hajimehoshi/ebiten/v2"
 	"sort"
+	"time"
 )
 
 type Parameters struct {
@@ -17,40 +18,47 @@ type Parameters struct {
 type Instance struct {
 	Entities map[ecstypes.EntityID]struct{}
 
-	Position *SMSystem[Position]
-	Motion   *SMSystem[Motion]
-	Helm     *SMSystem[Helm]
-	Sprite   *SMSystem[Sprite]
+	Name string
+
+	Position     *SMSystem[Position]
+	Motion       *SMSystem[Motion]
+	Helm         *SMSystem[Helm]
+	Sprite       *SMSystem[Sprite]
+	Player       *SMSystem[Player]
+	SyncReceiver *SMSystem[SyncReceiver]
+	SyncSender   *SMSystem[SyncSender]
 
 	Counter    uint64
 	Parameters Parameters
 
 	Pipe     *Pipe
-	receiver Receiver
+	Receiver ecstypes.Receiver
+	Sender   ecstypes.Sender
 }
 
 func NewInstance(parameters Parameters) *Instance {
-	result := &Instance{
-		Entities: make(map[ecstypes.EntityID]struct{}),
-
-		Position: NewSMSystem[Position](func(each *Position) error {
-			return each.Update()
-		}),
-		Motion: NewSMSystem[Motion](func(each *Motion) error {
-			return each.Update()
-		}),
-		Helm: NewSMSystem[Helm](func(each *Helm) error {
-			return each.Update()
-		}),
-
-		// sprites are like a system, but they are
-		// executed by Draw
-		Sprite: NewSMSystem[Sprite](func(each *Sprite) error {
-			return each.Update()
-		}),
-
-		Parameters: parameters,
-	}
+	var result = new(Instance)
+	result.Entities = make(map[ecstypes.EntityID]struct{})
+	result.Position = NewSMSystem[Position](func(each *Position) error {
+		return each.Update(result)
+	})
+	result.Motion = NewSMSystem[Motion](func(each *Motion) error {
+		return each.Update(result)
+	})
+	result.Helm = NewSMSystem[Helm](func(each *Helm) error {
+		return each.Update(result)
+	})
+	result.Sprite = NewSMSystem[Sprite](func(each *Sprite) error {
+		return each.Update(result)
+	})
+	result.Player = NewSMSystem[Player](func(each *Player) error {
+		return each.Update(result)
+	})
+	result.SyncReceiver = NewSMSystem[SyncReceiver](func(each *SyncReceiver) error {
+		return each.Update(result)
+	})
+	result.SyncSender = NewSMSystem[SyncSender](func(each *SyncSender) error { return each.Update(result) })
+	result.Parameters = parameters
 	return result
 }
 func (i *Instance) GetSystem(id ecstypes.SystemID) (ecstypes.System, error) {
@@ -61,6 +69,12 @@ func (i *Instance) GetSystem(id ecstypes.SystemID) (ecstypes.System, error) {
 		return i.Motion, nil
 	case ecstypes.SystemHelm:
 		return i.Helm, nil
+	case ecstypes.SystemPlayer:
+		return i.Player, nil
+	case ecstypes.SystemSyncReceiver:
+		return i.SyncReceiver, nil
+	case ecstypes.SystemSyncSender:
+		return i.SyncSender, nil
 	default:
 		return nil, fmt.Errorf("invalid system id: %w", ErrType)
 	}
@@ -83,6 +97,18 @@ func (i *Instance) AddComponent(e ecstypes.EntityID, component ecstypes.Componen
 		if err := i.Sprite.AddComponent(e, c); err != nil {
 			return err
 		}
+	case *Player:
+		if err := i.Player.AddComponent(e, c); err != nil {
+			return err
+		}
+	case *SyncReceiver:
+		if err := i.SyncReceiver.AddComponent(e, c); err != nil {
+			return err
+		}
+	case *SyncSender:
+		if err := i.SyncSender.AddComponent(e, c); err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("invalid system type %v: %w", component, ErrType)
 	}
@@ -98,28 +124,64 @@ func (i *Instance) GetComponent(systemID ecstypes.SystemID, e ecstypes.EntityID)
 		return i.Helm.GetComponent(e)
 	case ecstypes.SystemSprite:
 		return i.Sprite.GetComponent(e)
+	case ecstypes.SystemPlayer:
+		return i.Player.GetComponent(e)
+	case ecstypes.SystemSyncReceiver:
+		return i.SyncReceiver.GetComponent(e)
+	case ecstypes.SystemSyncSender:
+		return i.SyncSender.GetComponent(e)
 	default:
 		return nil, false
 	}
 }
-func (i *Instance) SetPipe(pipe *Pipe) {
-	i.Pipe = pipe
-	i.receiver = pipe
+func (i *Instance) GetSender() ecstypes.Sender {
+	return i.Sender
+}
+func (i *Instance) SetSender(sender ecstypes.Sender) {
+	i.Sender = sender
+}
+func (i *Instance) GetReceiver() ecstypes.Receiver {
+	return i.Receiver
+}
+func (i *Instance) SetReceiver(pipe ecstypes.Receiver) {
+	i.Receiver = pipe
+}
+func (i *Instance) GetName() string {
+	return i.Name
+}
+func (i *Instance) RunServer(done chan bool) {
+	ticker := time.NewTicker(16667 * time.Microsecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			i.Update()
+		case <-done:
+			return
+		}
+	}
+}
+func (i *Instance) GetCounter() uint64 {
+	return i.Counter
 }
 func (i *Instance) Update() error {
 	i.Counter++
 
 	var hasMessage bool
-	var msg ComponentMessage
+	var msg ecstypes.ComponentMessage
 	for {
-		if msg, hasMessage = i.receiver.Receive(); !hasMessage {
+		if msg, hasMessage = i.Receiver.Receive(); !hasMessage {
 			break
 		}
 		switch obj := msg.Payload.(type) {
 		case HelmInput:
-			helm, ok := i.Helm.GetComponent(msg.Entity)
-			if ok {
+			if helm, ok := i.Helm.GetComponent(msg.Entity); ok {
 				helm.Input = obj
+			}
+		case SyncInput:
+			if sync, ok := i.SyncReceiver.GetComponent(msg.Entity); ok {
+				sync.Input <- obj
 			}
 		default:
 		}
@@ -127,12 +189,12 @@ func (i *Instance) Update() error {
 
 	// systems must be executed in reverse dependency order
 	var errs []error
-	errs = append(errs, i.Helm.iterate(func(each *Helm) error {
-		return each.Update()
-	})...)
-	errs = append(errs, i.Motion.iterate(func(each *Motion) error {
-		return each.Update()
-	})...)
+	errs = append(errs, i.Helm.Iterate()...)
+	errs = append(errs, i.Motion.Iterate()...)
+	//errs = append(errs, i.Sprite.Iterate()...)
+	errs = append(errs, i.Player.Iterate()...)
+	errs = append(errs, i.SyncSender.Iterate()...)
+	errs = append(errs, i.SyncReceiver.Iterate()...)
 
 	errs = slices.Select(errs, func(err error) bool {
 		return err != nil
@@ -140,7 +202,7 @@ func (i *Instance) Update() error {
 	return errors.Join(errs...)
 }
 func (i *Instance) Draw(screen *ebiten.Image) {
-	i.Sprite.iterate(func(sprite *Sprite) error {
+	i.Sprite.doIterate(func(sprite *Sprite) error {
 		sprite.Draw(screen, false, false)
 		return nil
 	})

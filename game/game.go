@@ -21,7 +21,7 @@ type Game struct {
 	Line bool
 
 	Instance  *ecs.Instance
-	Sender    ecs.Sender
+	Sender    ecstypes.Sender
 	ShipInput ecs.HelmInput
 
 	Vertices []ebiten.Vertex
@@ -202,7 +202,7 @@ func (g *Game) Update() error {
 
 	if g.ShipInput != shipInput {
 		g.ShipInput = shipInput
-		g.Sender.Send(ecs.ComponentMessage{
+		g.Sender.Send(ecstypes.ComponentMessage{
 			Entity:  ecstypes.EntityID(0),
 			Payload: g.ShipInput,
 		})

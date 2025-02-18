@@ -28,7 +28,7 @@ func (comp *Position) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) 
 	}
 	return nil
 }
-func (comp *Position) Update() error {
+func (comp *Position) Update(_ ecstypes.SystemManager) error {
 	return nil
 }
 func (comp Position) SystemID() ecstypes.SystemID {
@@ -52,7 +52,7 @@ func (comp *Motion) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) er
 	}
 	return nil
 }
-func (comp *Motion) Update() error {
+func (comp *Motion) Update(_ ecstypes.SystemManager) error {
 	comp.Position.Vector = comp.Position.Vector.Add(comp.Velocity)
 
 	// Wrap around screen edges (toroidal topology)
@@ -93,7 +93,7 @@ func (comp *Helm) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) erro
 	}
 	return nil
 }
-func (comp *Helm) Update() error {
+func (comp *Helm) Update(_ ecstypes.SystemManager) error {
 	input := comp.Input
 	if input.Left {
 		comp.Position.Angle -= 3 * (math.Pi / 180)
@@ -104,7 +104,6 @@ func (comp *Helm) Update() error {
 	if input.Thrust {
 		// Update velocity based on velocity and angle
 		comp.Motion.Velocity = comp.Motion.Velocity.Add(comp.Position.Angle.ToVector().Multiply(ThrustAccel))
-		fmt.Printf("accel velocity %f %f \n", comp.Motion.Velocity.X, comp.Motion.Velocity.Y)
 	}
 	return nil
 }
@@ -134,7 +133,7 @@ func (comp *Sprite) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) er
 	}
 	return nil
 }
-func (comp *Sprite) Update() error {
+func (comp *Sprite) Update(_ ecstypes.SystemManager) error {
 	return nil
 }
 func (comp *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
@@ -189,4 +188,121 @@ func (comp *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 }
 func (comp Sprite) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemSprite
+}
+
+type Player struct {
+	Entity       ecstypes.EntityID
+	CurrentInput HelmInput
+}
+
+func (comp *Player) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	var err error
+	comp.Entity = entity
+	if err = sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding motion: %w", err)
+	}
+	return nil
+}
+func (comp *Player) Update(sm ecstypes.SystemManager) error {
+	var shipInput HelmInput
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+		shipInput.Left = true
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+		shipInput.Right = true
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+		shipInput.Thrust = true
+	}
+	if comp.CurrentInput != shipInput {
+		comp.CurrentInput = shipInput
+		sm.GetSender().Send(ecstypes.ComponentMessage{
+			Entity:  ecstypes.EntityID(0),
+			Payload: comp.CurrentInput,
+		})
+	}
+	return nil
+}
+func (comp Player) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemPlayer
+}
+
+type SyncReceiver struct {
+	Entity   ecstypes.EntityID
+	Input    chan SyncInput
+	Motion   *Motion
+	Position *Position
+}
+
+func (comp *SyncReceiver) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	var err error
+	comp.Entity = entity
+	comp.Input = make(chan SyncInput, 100)
+	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
+		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
+	}
+	if comp.Position, err = GetComponent[Position](sm, entity); comp.Position == nil {
+		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
+	}
+	if err = sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding motion: %w", err)
+	}
+	return nil
+}
+func (comp *SyncReceiver) Update(sm ecstypes.SystemManager) error {
+	for done := false; !done; {
+		select {
+		case input := <-comp.Input:
+			var delta = input.Velocity.Add(geom.Vector{
+				X: (input.Position.X - comp.Position.X) / 3,
+				Y: (input.Position.Y - comp.Position.Y) / 3,
+			})
+			comp.Motion.Velocity = delta
+			comp.Position.Angle = input.Angle
+		default:
+			done = true
+		}
+	}
+	return nil
+}
+func (comp SyncReceiver) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemSyncReceiver
+}
+
+type SyncSender struct {
+	Entity   ecstypes.EntityID
+	Motion   *Motion
+	Position *Position
+}
+
+func (comp *SyncSender) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	var err error
+	comp.Entity = entity
+	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
+		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
+	}
+	if comp.Position, err = GetComponent[Position](sm, entity); comp.Position == nil {
+		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
+	}
+	if err = sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding motion: %w", err)
+	}
+	return nil
+}
+func (comp *SyncSender) Update(sm ecstypes.SystemManager) error {
+	if sm.GetCounter()%3 == 0 {
+		var syncInput SyncInput
+		syncInput.Velocity = comp.Motion.Velocity
+		syncInput.Position = comp.Position.Vector
+		syncInput.Angle = comp.Position.Angle
+		var sender = sm.GetSender()
+		sender.Send(ecstypes.ComponentMessage{
+			Entity:  comp.Entity,
+			Payload: syncInput,
+		})
+	}
+	return nil
+}
+func (comp SyncSender) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemSyncSender
 }
