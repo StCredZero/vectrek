@@ -1,7 +1,10 @@
 package ecs
 
 import (
+	"errors"
 	"fmt"
+	"github.com/StCredZero/vectrek/constants"
+	"github.com/StCredZero/vectrek/ecstypes"
 	"github.com/StCredZero/vectrek/geom"
 	"github.com/StCredZero/vectrek/globals"
 	"github.com/StCredZero/vectrek/vterr"
@@ -10,168 +13,153 @@ import (
 	"math"
 )
 
-type SystemID int
-
-const (
-	SystemPosition SystemID = iota
-	SystemMotion
-	SystemHelm
-	SystemSprite
-)
-
-type Component interface {
-	Init(i *Instance, entity EntityID) error
-	Update(i *Instance) error
-	SystemID() SystemID
-}
+var ErrType = errors.New("type error")
 
 type Position struct {
-	Entity EntityID
+	Entity ecstypes.EntityID
 	geom.Vector
 	geom.Angle
 }
 
-func (m *Position) Init(i *Instance, entity EntityID) error {
-	m.Entity = entity
-	i.Positions.Add(m.Entity, *m)
+func (comp *Position) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	comp.Entity = entity
+	if err := sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding position: %w", err)
+	}
 	return nil
 }
-func (m *Position) Update(_ *Instance) error {
+func (comp *Position) Update() error {
 	return nil
 }
-func (m *Position) SystemID() SystemID {
-	return SystemPosition
+func (comp Position) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemPosition
 }
 
 type Motion struct {
-	Entity   EntityID
+	Entity   ecstypes.EntityID
 	Position *Position
 	Velocity geom.Vector
 }
 
-func (m *Motion) Init(i *Instance, entity EntityID) error {
-	m.Entity = entity
-	if p, gotPosition := i.Positions.Get(m.Entity); gotPosition {
-		m.Position = p
-	} else {
-		return fmt.Errorf("no position found for %d: %w", m.Entity, vterr.ErrMissing)
+func (comp *Motion) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	var err error
+	comp.Entity = entity
+	if comp.Position, err = GetComponent[Position](sm, entity); err != nil {
+		return fmt.Errorf("adding position: %w", err)
 	}
-	i.Motions.Add(m.Entity, *m)
+	if err = sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding motion: %w", err)
+	}
 	return nil
 }
-func (m *Motion) Update(i *Instance) error {
-	m.Position.Vector = m.Position.Vector.Add(m.Velocity)
+func (comp *Motion) Update() error {
+	comp.Position.Vector = comp.Position.Vector.Add(comp.Velocity)
 
 	// Wrap around screen edges (toroidal topology)
-	if m.Position.X < 0 {
-		m.Position.X += i.Parameters.ScreenWidth
-	} else if m.Position.X >= i.Parameters.ScreenWidth {
-		m.Position.X -= i.Parameters.ScreenWidth
+	if comp.Position.X < 0 {
+		comp.Position.X += constants.ScreenWidth
+	} else if comp.Position.X >= constants.ScreenWidth {
+		comp.Position.X -= constants.ScreenWidth
 	}
-	if m.Position.Y < 0 {
-		m.Position.Y += i.Parameters.ScreenHeight
-	} else if m.Position.Y >= i.Parameters.ScreenHeight {
-		m.Position.Y -= i.Parameters.ScreenHeight
+	if comp.Position.Y < 0 {
+		comp.Position.Y += constants.ScreenHeight
+	} else if comp.Position.Y >= constants.ScreenHeight {
+		comp.Position.Y -= constants.ScreenHeight
 	}
 	return nil
 }
-func (m *Motion) SystemID() SystemID {
-	return SystemMotion
+func (comp Motion) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemMotion
 }
 
 type Helm struct {
-	Entity   EntityID
+	Entity   ecstypes.EntityID
 	Position *Position
 	Motion   *Motion
 	Input    HelmInput
 }
 
-func (m *Helm) Init(i *Instance, entity EntityID) error {
-	m.Entity = entity
-	if m.Motion = i.Motions.MustGet(m.Entity); m.Motion == nil {
+func (comp *Helm) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	var err error
+	comp.Entity = entity
+	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
 		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
 	}
-	if m.Position = i.Positions.MustGet(m.Entity); m.Position == nil {
+	if comp.Position, err = GetComponent[Position](sm, entity); comp.Position == nil {
 		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
 	}
-	i.Helms.Add(m.Entity, *m)
+	if err = sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding motion: %w", err)
+	}
 	return nil
 }
-func (m *Helm) Update(_ *Instance) error {
-	/*var input HelmInput
-	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
-		input.Left = true
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
-		input.Right = true
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
-		input.Thrust = true
-	}*/
-	// Entity rotation (3 degrees per tick)
-	input := m.Input
+func (comp *Helm) Update() error {
+	input := comp.Input
 	if input.Left {
-		m.Position.Angle -= 3 * (math.Pi / 180)
+		comp.Position.Angle -= 3 * (math.Pi / 180)
 	}
 	if input.Right {
-		m.Position.Angle += 3 * (math.Pi / 180)
+		comp.Position.Angle += 3 * (math.Pi / 180)
 	}
 	if input.Thrust {
 		// Update velocity based on velocity and angle
-		m.Motion.Velocity = m.Motion.Velocity.Add(m.Position.Angle.ToVector().Multiply(ThrustAccel))
-		fmt.Printf("accel velocity %f %f \n", m.Motion.Velocity.X, m.Motion.Velocity.Y)
+		comp.Motion.Velocity = comp.Motion.Velocity.Add(comp.Position.Angle.ToVector().Multiply(ThrustAccel))
+		fmt.Printf("accel velocity %f %f \n", comp.Motion.Velocity.X, comp.Motion.Velocity.Y)
 	}
 	return nil
 }
-func (m *Helm) SystemID() SystemID {
-	return SystemHelm
+func (comp Helm) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemHelm
 }
 
 type Sprite struct {
-	Entity   EntityID
+	Entity   ecstypes.EntityID
 	Motion   *Motion
 	Position *Position
 	Vertices []ebiten.Vertex
 	Indices  []uint16
 }
 
-func (s *Sprite) Init(i *Instance, entity EntityID) error {
-	s.Entity = entity
-	if s.Motion = i.Motions.MustGet(s.Entity); s.Motion == nil {
+func (comp *Sprite) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+	var err error
+	comp.Entity = entity
+	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
 		return fmt.Errorf("no Motion found: %w", vterr.ErrMissing)
 	}
-	if s.Position = i.Positions.MustGet(s.Entity); s.Position == nil {
+	if comp.Position, err = GetComponent[Position](sm, entity); comp.Position == nil {
 		return fmt.Errorf("no Position found: %w", vterr.ErrMissing)
 	}
-	i.Sprites.Add(s.Entity, *s)
+	if err = sm.AddComponent(entity, comp); err != nil {
+		return fmt.Errorf("adding motion: %w", err)
+	}
 	return nil
 }
-func (s *Sprite) Update(_ *Instance) error {
+func (comp *Sprite) Update() error {
 	return nil
 }
-func (s *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
+func (comp *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 	var path vector.Path
 
 	// Define ship as a triangle
 	length := float32(15.0)
-	theta := float32(s.Position.Angle)
+	theta := float32(comp.Position.Angle)
 
 	// Front point
 	path.MoveTo(
-		float32(s.Motion.Position.X)+length*float32(math.Cos(float64(theta))),
-		float32(s.Motion.Position.Y)+length*float32(math.Sin(float64(theta))),
+		float32(comp.Motion.Position.X)+length*float32(math.Cos(float64(theta))),
+		float32(comp.Motion.Position.Y)+length*float32(math.Sin(float64(theta))),
 	)
 
 	// Right point (120 degrees from front)
 	path.LineTo(
-		float32(s.Motion.Position.X)+length*float32(math.Cos(float64(theta)+2.0944)), // 2.0944 rad = 120 deg
-		float32(s.Motion.Position.Y)+length*float32(math.Sin(float64(theta)+2.0944)),
+		float32(comp.Motion.Position.X)+length*float32(math.Cos(float64(theta)+2.0944)), // 2.0944 rad = 120 deg
+		float32(comp.Motion.Position.Y)+length*float32(math.Sin(float64(theta)+2.0944)),
 	)
 
 	// Left point (-120 degrees from front)
 	path.LineTo(
-		float32(s.Motion.Position.X)+length*float32(math.Cos(float64(theta)-2.0944)),
-		float32(s.Motion.Position.Y)+length*float32(math.Sin(float64(theta)-2.0944)),
+		float32(comp.Motion.Position.X)+length*float32(math.Cos(float64(theta)-2.0944)),
+		float32(comp.Motion.Position.Y)+length*float32(math.Sin(float64(theta)-2.0944)),
 	)
 
 	path.Close()
@@ -180,25 +168,25 @@ func (s *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 		op := &vector.StrokeOptions{}
 		op.Width = 2
 		op.LineJoin = vector.LineJoinRound
-		s.Vertices, s.Indices = path.AppendVerticesAndIndicesForStroke(s.Vertices[:0], s.Indices[:0], op)
+		comp.Vertices, comp.Indices = path.AppendVerticesAndIndicesForStroke(comp.Vertices[:0], comp.Indices[:0], op)
 	} else {
-		s.Vertices, s.Indices = path.AppendVerticesAndIndicesForFilling(s.Vertices[:0], s.Indices[:0])
+		comp.Vertices, comp.Indices = path.AppendVerticesAndIndicesForFilling(comp.Vertices[:0], comp.Indices[:0])
 	}
 
-	for i := range s.Vertices {
-		s.Vertices[i].SrcX = 1
-		s.Vertices[i].SrcY = 1
-		s.Vertices[i].ColorR = 1
-		s.Vertices[i].ColorG = 1
-		s.Vertices[i].ColorB = 1
-		s.Vertices[i].ColorA = 1
+	for i := range comp.Vertices {
+		comp.Vertices[i].SrcX = 1
+		comp.Vertices[i].SrcY = 1
+		comp.Vertices[i].ColorR = 1
+		comp.Vertices[i].ColorG = 1
+		comp.Vertices[i].ColorB = 1
+		comp.Vertices[i].ColorA = 1
 	}
 
 	op := &ebiten.DrawTrianglesOptions{}
 	op.AntiAlias = aa
 	op.FillRule = ebiten.FillRuleNonZero
-	screen.DrawTriangles(s.Vertices, s.Indices, globals.WhiteSubImage, op)
+	screen.DrawTriangles(comp.Vertices, comp.Indices, globals.WhiteSubImage, op)
 }
-func (s *Sprite) SystemID() SystemID {
-	return SystemSprite
+func (comp Sprite) SystemID() ecstypes.SystemID {
+	return ecstypes.SystemSprite
 }
