@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/StCredZero/vectrek/constants"
 	"github.com/StCredZero/vectrek/ecs"
+	"github.com/StCredZero/vectrek/ecstypes"
 	"github.com/StCredZero/vectrek/globals"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -202,7 +203,7 @@ func (g *Game) Update() error {
 	if g.ShipInput != shipInput {
 		g.ShipInput = shipInput
 		g.Sender.Send(ecs.ComponentMessage{
-			Entity:  ecs.EntityID(0),
+			Entity:  ecstypes.EntityID(0),
 			Payload: g.ShipInput,
 		})
 	}

@@ -1,5 +1,7 @@
 package ecs
 
+import "github.com/StCredZero/vectrek/ecstypes"
+
 type Sender interface {
 	Send(msg ComponentMessage)
 }
@@ -8,7 +10,7 @@ type Receiver interface {
 	Receive() (ComponentMessage, bool)
 }
 type ComponentMessage struct {
-	Entity  EntityID
+	Entity  ecstypes.EntityID
 	Payload any
 }
 

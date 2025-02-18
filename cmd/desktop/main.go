@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/StCredZero/vectrek/constants"
 	"github.com/StCredZero/vectrek/ecs"
+	"github.com/StCredZero/vectrek/ecstypes"
 	"github.com/StCredZero/vectrek/geom"
 	"github.com/hajimehoshi/ebiten/v2"
 	"log"
@@ -16,7 +17,7 @@ func main() {
 		ScreenHeight: constants.ScreenHeight,
 	})
 	err := instance.AddEntity(
-		ecs.EntityID(0),
+		ecstypes.EntityID(0),
 		&ecs.Position{
 			Vector: geom.Vector{
 				X: constants.ScreenWidth / 2,
@@ -51,7 +52,7 @@ func main() {
 			if currentInput != shipInput {
 				currentInput = shipInput
 				sender.Send(ecs.ComponentMessage{
-					Entity:  ecs.EntityID(0),
+					Entity:  ecstypes.EntityID(0),
 					Payload: currentInput,
 				})
 			}

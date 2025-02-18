@@ -2,9 +2,10 @@ package ecs
 
 import (
 	"errors"
+	"fmt"
 	"github.com/StCredZero/vectrek/constants"
+	"github.com/StCredZero/vectrek/ecstypes"
 	"github.com/StCredZero/vectrek/slices"
-	"github.com/StCredZero/vectrek/sparse"
 	"github.com/hajimehoshi/ebiten/v2"
 	"sort"
 )
@@ -14,11 +15,12 @@ type Parameters struct {
 	ScreenHeight float64
 }
 type Instance struct {
-	Entities  map[EntityID]struct{}
-	Positions *sparse.Map[Position]
-	Motions   *sparse.Map[Motion]
-	Helms     *sparse.Map[Helm]
-	Sprites   *sparse.Map[Sprite]
+	Entities map[ecstypes.EntityID]struct{}
+
+	Position *SMSystem[Position]
+	Motion   *SMSystem[Motion]
+	Helm     *SMSystem[Helm]
+	Sprite   *SMSystem[Sprite]
 
 	Counter    uint64
 	Parameters Parameters
@@ -28,17 +30,76 @@ type Instance struct {
 }
 
 func NewInstance(parameters Parameters) *Instance {
-	return &Instance{
-		Entities:  make(map[EntityID]struct{}),
-		Positions: sparse.NewMap[Position](),
-		Motions:   sparse.NewMap[Motion](),
-		Helms:     sparse.NewMap[Helm](),
+	result := &Instance{
+		Entities: make(map[ecstypes.EntityID]struct{}),
+
+		Position: NewSMSystem[Position](func(each *Position) error {
+			return each.Update()
+		}),
+		Motion: NewSMSystem[Motion](func(each *Motion) error {
+			return each.Update()
+		}),
+		Helm: NewSMSystem[Helm](func(each *Helm) error {
+			return each.Update()
+		}),
 
 		// sprites are like a system, but they are
 		// executed by Draw
-		Sprites: sparse.NewMap[Sprite](),
+		Sprite: NewSMSystem[Sprite](func(each *Sprite) error {
+			return each.Update()
+		}),
 
 		Parameters: parameters,
+	}
+	return result
+}
+func (i *Instance) GetSystem(id ecstypes.SystemID) (ecstypes.System, error) {
+	switch id {
+	case ecstypes.SystemPosition:
+		return i.Position, nil
+	case ecstypes.SystemMotion:
+		return i.Motion, nil
+	case ecstypes.SystemHelm:
+		return i.Helm, nil
+	default:
+		return nil, fmt.Errorf("invalid system id: %w", ErrType)
+	}
+}
+func (i *Instance) AddComponent(e ecstypes.EntityID, component ecstypes.Component) error {
+	switch c := component.(type) {
+	case *Position:
+		if err := i.Position.AddComponent(e, c); err != nil {
+			return err
+		}
+	case *Motion:
+		if err := i.Motion.AddComponent(e, c); err != nil {
+			return err
+		}
+	case *Helm:
+		if err := i.Helm.AddComponent(e, c); err != nil {
+			return err
+		}
+	case *Sprite:
+		if err := i.Sprite.AddComponent(e, c); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("invalid system type %v: %w", component, ErrType)
+	}
+	return nil
+}
+func (i *Instance) GetComponent(systemID ecstypes.SystemID, e ecstypes.EntityID) (ecstypes.Component, bool) {
+	switch systemID {
+	case ecstypes.SystemPosition:
+		return i.Position.GetComponent(e)
+	case ecstypes.SystemMotion:
+		return i.Motion.GetComponent(e)
+	case ecstypes.SystemHelm:
+		return i.Helm.GetComponent(e)
+	case ecstypes.SystemSprite:
+		return i.Sprite.GetComponent(e)
+	default:
+		return nil, false
 	}
 }
 func (i *Instance) SetPipe(pipe *Pipe) {
@@ -56,7 +117,7 @@ func (i *Instance) Update() error {
 		}
 		switch obj := msg.Payload.(type) {
 		case HelmInput:
-			helm, ok := i.Helms.Get(msg.Entity)
+			helm, ok := i.Helm.GetComponent(msg.Entity)
 			if ok {
 				helm.Input = obj
 			}
@@ -66,11 +127,11 @@ func (i *Instance) Update() error {
 
 	// systems must be executed in reverse dependency order
 	var errs []error
-	errs = append(errs, i.Helms.Iterate(func(each *Helm) error {
-		return each.Update(i)
+	errs = append(errs, i.Helm.iterate(func(each *Helm) error {
+		return each.Update()
 	})...)
-	errs = append(errs, i.Motions.Iterate(func(each *Motion) error {
-		return each.Update(i)
+	errs = append(errs, i.Motion.iterate(func(each *Motion) error {
+		return each.Update()
 	})...)
 
 	errs = slices.Select(errs, func(err error) bool {
@@ -79,7 +140,7 @@ func (i *Instance) Update() error {
 	return errors.Join(errs...)
 }
 func (i *Instance) Draw(screen *ebiten.Image) {
-	i.Sprites.Iterate(func(sprite *Sprite) error {
+	i.Sprite.iterate(func(sprite *Sprite) error {
 		sprite.Draw(screen, false, false)
 		return nil
 	})
@@ -88,8 +149,8 @@ func (i *Instance) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return constants.ScreenWidth, constants.ScreenHeight
 }
 func (i *Instance) AddEntity(
-	entity EntityID,
-	components ...Component,
+	entity ecstypes.EntityID,
+	components ...ecstypes.Component,
 ) error {
 	i.Entities[entity] = struct{}{}
 	sort.Slice(components, func(i, j int) bool {
