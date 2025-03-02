@@ -5,4 +5,7 @@ const (
 	SystemMotion
 	SystemHelm
 	SystemSprite
+	SystemPlayer
+	SystemSyncReceiver
+	SystemSyncSender
 )
