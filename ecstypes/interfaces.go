@@ -3,6 +3,7 @@ package ecstypes
 type System interface {
 	IsSystem()
 	SystemID() SystemID
+	Iterate() []error
 }
 
 type SystemManager interface {
