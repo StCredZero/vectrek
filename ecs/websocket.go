@@ -152,6 +152,22 @@ func (wr *WebsocketReceiver) Receive() (ecstypes.ComponentMessage, bool) {
 	return msg, true
 }
 
+// DummySender implements the ecstypes.Sender interface but does nothing
+type DummySender struct{}
+
+// Send does nothing in the dummy implementation
+func (ds *DummySender) Send(msg ecstypes.ComponentMessage) {
+	// No-op implementation
+}
+
+// DummyReceiver implements the ecstypes.Receiver interface but always returns false
+type DummyReceiver struct{}
+
+// Receive always returns false in the dummy implementation
+func (dr *DummyReceiver) Receive() (ecstypes.ComponentMessage, bool) {
+	return ecstypes.ComponentMessage{}, false
+}
+
 // Server wraps an Instance and provides websocket functionality
 type Server struct {
 	Instance *Instance
@@ -162,6 +178,10 @@ type Server struct {
 
 // NewServer creates a new Server
 func NewServer(instance *Instance) *Server {
+	// Initialize the instance with dummy sender and receiver to prevent nil pointer dereference
+	instance.SetSender(&DummySender{})
+	instance.SetReceiver(&DummyReceiver{})
+	
 	return &Server{
 		Instance: instance,
 		upgrader: websocket.Upgrader{
