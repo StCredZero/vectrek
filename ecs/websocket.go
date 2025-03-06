@@ -198,7 +198,6 @@ func NewServer(instance *Instance) *Server {
 // Start starts the server
 func (s *Server) Start(addr string) error {
 	http.HandleFunc("/ws", s.handleWebsocket)
-	log.Printf("Starting server on %s", addr)
 	return http.ListenAndServe(addr, nil)
 }
 

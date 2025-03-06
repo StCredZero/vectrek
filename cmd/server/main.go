@@ -261,24 +261,27 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-	// Create and start the headless server
+	// Create the headless server
 	headlessServer := NewHeadlessServer()
+	
+	// Create a shared instance for both the game logic and websocket server
+	sharedInstance := &ecs.Instance{
+		Name:         "Server",
+		Position:     headlessServer.Instance.position,
+		Motion:       headlessServer.Instance.motion,
+		Helm:         headlessServer.Instance.helm,
+		SyncReceiver: headlessServer.Instance.syncReceiver,
+		SyncSender:   headlessServer.Instance.syncSender,
+		Parameters:   headlessServer.Instance.parameters,
+		Receiver:     headlessServer.Instance.receiver,
+		Sender:       headlessServer.Instance.sender,
+	}
+	
+	// Create the websocket server with the shared instance
+	server := ecs.NewServer(sharedInstance)
+	
+	// Start the headless server in a goroutine
 	headlessServer.Start()
-
-	// Create and start the websocket server
-	server := ecs.NewServer(
-		&ecs.Instance{
-			Name:         "Server",
-			Position:     headlessServer.Instance.position,
-			Motion:       headlessServer.Instance.motion,
-			Helm:         headlessServer.Instance.helm,
-			SyncReceiver: headlessServer.Instance.syncReceiver,
-			SyncSender:   headlessServer.Instance.syncSender,
-			Parameters:   headlessServer.Instance.parameters,
-			Receiver:     headlessServer.Instance.receiver,
-			Sender:       headlessServer.Instance.sender,
-		},
-	)
 	
 	// Start the websocket server in a goroutine
 	addr := fmt.Sprintf(":%s", ecs.WebsocketPort)
