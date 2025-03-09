@@ -29,6 +29,13 @@ type Receiver interface {
 	Receive() (ComponentMessage, bool)
 }
 
+type ConnectionManager interface {
+	GetSender() Sender
+	SetSender(sender Sender)
+	GetReceiver() Receiver
+	SetReceiver(receiver Receiver)
+}
+
 type ComponentMessage struct {
 	Entity  EntityID
 	Payload any

@@ -24,3 +24,29 @@ func (p *Pipe) Receive() (ecstypes.ComponentMessage, bool) {
 		return ecstypes.ComponentMessage{}, false
 	}
 }
+
+type PipeConnectionManager struct {
+	Pipe     *Pipe
+	Receiver ecstypes.Receiver
+	Sender   ecstypes.Sender
+}
+
+func NewPipeConnectionManager() *PipeConnectionManager {
+	return &PipeConnectionManager{}
+}
+
+func (pcm *PipeConnectionManager) GetSender() ecstypes.Sender {
+	return pcm.Sender
+}
+
+func (pcm *PipeConnectionManager) SetSender(sender ecstypes.Sender) {
+	pcm.Sender = sender
+}
+
+func (pcm *PipeConnectionManager) GetReceiver() ecstypes.Receiver {
+	return pcm.Receiver
+}
+
+func (pcm *PipeConnectionManager) SetReceiver(receiver ecstypes.Receiver) {
+	pcm.Receiver = receiver
+}
