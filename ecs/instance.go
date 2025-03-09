@@ -30,9 +30,7 @@ type Instance struct {
 	Counter    uint64
 	Parameters Parameters
 
-	Pipe     *Pipe
-	Receiver ecstypes.Receiver
-	Sender   ecstypes.Sender
+	ConnectionManager ecstypes.ConnectionManager
 }
 
 func NewInstance(parameters Parameters) *Instance {
@@ -58,19 +56,20 @@ func NewInstance(parameters Parameters) *Instance {
 	})
 	result.SyncSender = NewSMSystem[SyncSender](func(each SyncSender) (SyncSender, error) { return each.Update(result) })
 	result.Parameters = parameters
+	result.ConnectionManager = NewPipeConnectionManager()
 	return result
 }
 func (i *Instance) GetSender() ecstypes.Sender {
-	return i.Sender
+	return i.ConnectionManager.GetSender()
 }
 func (i *Instance) SetSender(sender ecstypes.Sender) {
-	i.Sender = sender
+	i.ConnectionManager.SetSender(sender)
 }
 func (i *Instance) GetReceiver() ecstypes.Receiver {
-	return i.Receiver
+	return i.ConnectionManager.GetReceiver()
 }
 func (i *Instance) SetReceiver(pipe ecstypes.Receiver) {
-	i.Receiver = pipe
+	i.ConnectionManager.SetReceiver(pipe)
 }
 func (i *Instance) GetName() string {
 	return i.Name
@@ -97,7 +96,7 @@ func (i *Instance) Update() error {
 	var hasMessage bool
 	var msg ecstypes.ComponentMessage
 	for {
-		if msg, hasMessage = i.Receiver.Receive(); !hasMessage {
+		if msg, hasMessage = i.ConnectionManager.GetReceiver().Receive(); !hasMessage {
 			break
 		}
 		switch obj := msg.Payload.(type) {
