@@ -38,25 +38,25 @@ type Instance struct {
 func NewInstance(parameters Parameters) *Instance {
 	var result = new(Instance)
 	result.Entities = make(map[ecstypes.EntityID]struct{})
-	result.Position = NewSMSystem[Position](func(each *Position) error {
+	result.Position = NewSMSystem[Position](func(each Position) (Position, error) {
 		return each.Update(result)
 	})
-	result.Motion = NewSMSystem[Motion](func(each *Motion) error {
+	result.Motion = NewSMSystem[Motion](func(each Motion) (Motion, error) {
 		return each.Update(result)
 	})
-	result.Helm = NewSMSystem[Helm](func(each *Helm) error {
+	result.Helm = NewSMSystem[Helm](func(each Helm) (Helm, error) {
 		return each.Update(result)
 	})
-	result.Sprite = NewSMSystem[Sprite](func(each *Sprite) error {
+	result.Sprite = NewSMSystem[Sprite](func(each Sprite) (Sprite, error) {
 		return each.Update(result)
 	})
-	result.Player = NewSMSystem[Player](func(each *Player) error {
+	result.Player = NewSMSystem[Player](func(each Player) (Player, error) {
 		return each.Update(result)
 	})
-	result.SyncReceiver = NewSMSystem[SyncReceiver](func(each *SyncReceiver) error {
+	result.SyncReceiver = NewSMSystem[SyncReceiver](func(each SyncReceiver) (SyncReceiver, error) {
 		return each.Update(result)
 	})
-	result.SyncSender = NewSMSystem[SyncSender](func(each *SyncSender) error { return each.Update(result) })
+	result.SyncSender = NewSMSystem[SyncSender](func(each SyncSender) (SyncSender, error) { return each.Update(result) })
 	result.Parameters = parameters
 	return result
 }
@@ -128,9 +128,9 @@ func (i *Instance) Update() error {
 	return errors.Join(errs...)
 }
 func (i *Instance) Draw(screen *ebiten.Image) {
-	i.Sprite.doIterate(func(sprite *Sprite) error {
+	i.Sprite.doIterate(func(sprite Sprite) (Sprite, error) {
 		sprite.Draw(screen, false, false)
-		return nil
+		return sprite, nil
 	})
 }
 func (i *Instance) Layout(outsideWidth, outsideHeight int) (int, int) {
