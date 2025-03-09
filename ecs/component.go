@@ -21,15 +21,15 @@ type Position struct {
 	geom.Angle
 }
 
-func (comp *Position) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp Position) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	comp.Entity = entity
 	if err := sm.AddComponent(entity, comp); err != nil {
 		return fmt.Errorf("adding position: %w", err)
 	}
 	return nil
 }
-func (comp *Position) Update(_ ecstypes.SystemManager) error {
-	return nil
+func (comp Position) Update(_ ecstypes.SystemManager) (Position, error) {
+	return comp, nil
 }
 func (comp Position) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemPosition
@@ -41,7 +41,7 @@ type Motion struct {
 	Velocity geom.Vector
 }
 
-func (comp *Motion) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp Motion) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	var err error
 	comp.Entity = entity
 	if comp.Position, err = GetComponent[Position](sm, entity); err != nil {
@@ -52,7 +52,7 @@ func (comp *Motion) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) er
 	}
 	return nil
 }
-func (comp *Motion) Update(_ ecstypes.SystemManager) error {
+func (comp Motion) Update(_ ecstypes.SystemManager) (Motion, error) {
 	comp.Position.Vector = comp.Position.Vector.Add(comp.Velocity)
 
 	// Wrap around screen edges (toroidal topology)
@@ -66,7 +66,7 @@ func (comp *Motion) Update(_ ecstypes.SystemManager) error {
 	} else if comp.Position.Y >= constants.ScreenHeight {
 		comp.Position.Y -= constants.ScreenHeight
 	}
-	return nil
+	return comp, nil
 }
 func (comp Motion) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemMotion
@@ -79,7 +79,7 @@ type Helm struct {
 	Input    HelmInput
 }
 
-func (comp *Helm) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp Helm) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	var err error
 	comp.Entity = entity
 	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
@@ -93,7 +93,7 @@ func (comp *Helm) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) erro
 	}
 	return nil
 }
-func (comp *Helm) Update(_ ecstypes.SystemManager) error {
+func (comp Helm) Update(_ ecstypes.SystemManager) (Helm, error) {
 	input := comp.Input
 	if input.Left {
 		comp.Position.Angle -= 3 * (math.Pi / 180)
@@ -105,7 +105,7 @@ func (comp *Helm) Update(_ ecstypes.SystemManager) error {
 		// Update velocity based on velocity and angle
 		comp.Motion.Velocity = comp.Motion.Velocity.Add(comp.Position.Angle.ToVector().Multiply(ThrustAccel))
 	}
-	return nil
+	return comp, nil
 }
 func (comp Helm) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemHelm
@@ -119,7 +119,7 @@ type Sprite struct {
 	Indices  []uint16
 }
 
-func (comp *Sprite) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp Sprite) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	var err error
 	comp.Entity = entity
 	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
@@ -133,8 +133,8 @@ func (comp *Sprite) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) er
 	}
 	return nil
 }
-func (comp *Sprite) Update(_ ecstypes.SystemManager) error {
-	return nil
+func (comp Sprite) Update(_ ecstypes.SystemManager) (Sprite, error) {
+	return comp, nil
 }
 func (comp *Sprite) Draw(screen *ebiten.Image, aa bool, line bool) {
 	var path vector.Path
@@ -195,7 +195,7 @@ type Player struct {
 	CurrentInput HelmInput
 }
 
-func (comp *Player) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp Player) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	var err error
 	comp.Entity = entity
 	if err = sm.AddComponent(entity, comp); err != nil {
@@ -203,7 +203,7 @@ func (comp *Player) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) er
 	}
 	return nil
 }
-func (comp *Player) Update(sm ecstypes.SystemManager) error {
+func (comp Player) Update(sm ecstypes.SystemManager) (Player, error) {
 	var shipInput HelmInput
 	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		shipInput.Left = true
@@ -221,7 +221,7 @@ func (comp *Player) Update(sm ecstypes.SystemManager) error {
 			Payload: comp.CurrentInput,
 		})
 	}
-	return nil
+	return comp, nil
 }
 func (comp Player) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemPlayer
@@ -234,7 +234,7 @@ type SyncReceiver struct {
 	Position *Position
 }
 
-func (comp *SyncReceiver) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp SyncReceiver) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	var err error
 	comp.Entity = entity
 	comp.Input = make(chan SyncInput, 100)
@@ -249,7 +249,7 @@ func (comp *SyncReceiver) Init(sm ecstypes.SystemManager, entity ecstypes.Entity
 	}
 	return nil
 }
-func (comp *SyncReceiver) Update(sm ecstypes.SystemManager) error {
+func (comp SyncReceiver) Update(sm ecstypes.SystemManager) (SyncReceiver, error) {
 	for done := false; !done; {
 		select {
 		case input := <-comp.Input:
@@ -263,7 +263,7 @@ func (comp *SyncReceiver) Update(sm ecstypes.SystemManager) error {
 			done = true
 		}
 	}
-	return nil
+	return comp, nil
 }
 func (comp SyncReceiver) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemSyncReceiver
@@ -275,7 +275,7 @@ type SyncSender struct {
 	Position *Position
 }
 
-func (comp *SyncSender) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
+func (comp SyncSender) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID) error {
 	var err error
 	comp.Entity = entity
 	if comp.Motion, err = GetComponent[Motion](sm, entity); comp.Motion == nil {
@@ -289,7 +289,7 @@ func (comp *SyncSender) Init(sm ecstypes.SystemManager, entity ecstypes.EntityID
 	}
 	return nil
 }
-func (comp *SyncSender) Update(sm ecstypes.SystemManager) error {
+func (comp SyncSender) Update(sm ecstypes.SystemManager) (SyncSender, error) {
 	if sm.GetCounter()%3 == 0 {
 		var syncInput SyncInput
 		syncInput.Velocity = comp.Motion.Velocity
@@ -301,7 +301,7 @@ func (comp *SyncSender) Update(sm ecstypes.SystemManager) error {
 			Payload: syncInput,
 		})
 	}
-	return nil
+	return comp, nil
 }
 func (comp SyncSender) SystemID() ecstypes.SystemID {
 	return ecstypes.SystemSyncSender

@@ -6,12 +6,12 @@ import (
 	"github.com/StCredZero/vectrek/sparse"
 )
 
-type SMSystem[T ecstypes.ComponentStorage] struct {
+type SMSystem[T ecstypes.Component] struct {
 	Map    *sparse.Map[T]
-	Update func(each *T) error
+	Update func(each T) (T, error)
 }
 
-func NewSMSystem[T ecstypes.ComponentStorage](update func(each *T) error) *SMSystem[T] {
+func NewSMSystem[T ecstypes.Component](update func(each T) (T, error)) *SMSystem[T] {
 	return &SMSystem[T]{
 		Map:    sparse.NewMap[T](),
 		Update: update,
@@ -26,8 +26,8 @@ func (s *SMSystem[T]) SystemID() ecstypes.SystemID {
 	return zero.SystemID()
 }
 
-func (s *SMSystem[T]) AddComponent(e ecstypes.EntityID, component *T) error {
-	s.Map.Add(sparse.Key(e), *component)
+func (s *SMSystem[T]) AddComponent(e ecstypes.EntityID, component T) error {
+	s.Map.Add(sparse.Key(e), component)
 	return nil
 }
 
@@ -43,13 +43,13 @@ func (s *SMSystem[T]) Iterate() []error {
 	return s.doIterate(s.Update)
 }
 
-func (s *SMSystem[T]) doIterate(fn func(each *T) error) []error {
+func (s *SMSystem[T]) doIterate(fn func(each T) (T, error)) []error {
 	var errs = make([]error, 10)
 	errs = append(errs, s.Map.Iterate(fn)...)
 	return errs
 }
 
-func GetComponent[T ecstypes.ComponentStorage](sm ecstypes.SystemManager, entity ecstypes.EntityID) (*T, error) {
+func GetComponent[T ecstypes.Component](sm ecstypes.SystemManager, entity ecstypes.EntityID) (*T, error) {
 	var zero T
 	var sys ecstypes.System
 	var err error

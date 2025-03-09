@@ -47,11 +47,12 @@ func (s *Map[T]) Delete(key Key) {
 	s.deleted[denseIndex] = struct{}{}
 }
 
-func (s *Map[T]) Iterate(fn func(value *T) error) []error {
+func (s *Map[T]) Iterate(fn func(value T) (T, error)) []error {
 	errs := make([]error, 0, len(s.dense))
 	for i := range s.dense {
 		if _, deleted := s.deleted[i]; !deleted {
-			err := fn(&s.dense[i])
+			updated, err := fn(s.dense[i])
+			s.dense[i] = updated
 			errs = append(errs, err)
 		}
 	}

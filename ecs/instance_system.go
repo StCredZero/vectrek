@@ -45,31 +45,31 @@ func (i *Instance) GetSystem(id ecstypes.SystemID) (ecstypes.System, error) {
 }
 func (i *Instance) AddComponent(e ecstypes.EntityID, component ecstypes.Component) error {
 	switch c := component.(type) {
-	case *Position:
+	case Position:
 		if err := i.Position.AddComponent(e, c); err != nil {
 			return err
 		}
-	case *Motion:
+	case Motion:
 		if err := i.Motion.AddComponent(e, c); err != nil {
 			return err
 		}
-	case *Helm:
+	case Helm:
 		if err := i.Helm.AddComponent(e, c); err != nil {
 			return err
 		}
-	case *Sprite:
+	case Sprite:
 		if err := i.Sprite.AddComponent(e, c); err != nil {
 			return err
 		}
-	case *Player:
+	case Player:
 		if err := i.Player.AddComponent(e, c); err != nil {
 			return err
 		}
-	case *SyncReceiver:
+	case SyncReceiver:
 		if err := i.SyncReceiver.AddComponent(e, c); err != nil {
 			return err
 		}
-	case *SyncSender:
+	case SyncSender:
 		if err := i.SyncSender.AddComponent(e, c); err != nil {
 			return err
 		}

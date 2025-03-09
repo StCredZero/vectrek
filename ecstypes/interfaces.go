@@ -16,13 +16,8 @@ type SystemManager interface {
 	GetName() string
 }
 
-type ComponentStorage interface {
-	SystemID() SystemID
-}
-
 type Component interface {
 	Init(sm SystemManager, entity EntityID) error
-	Update(sm SystemManager) error
 	SystemID() SystemID
 }
 
